@@ -1,0 +1,28 @@
+{
+  "name": "qp",
+  "version": "0.0.0",
+  "description": "Queue management, similar to that of kue",
+  "main": "index.js",
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": "",
+  "keywords": [
+    "process",
+    "queue",
+    "kue",
+    "middleware",
+    "redis"
+  ],
+  "author": "Simon Tabor",
+  "license": "MIT",
+  "dependencies": {
+    "redis": "~0.8.3",
+    "hiredis": "~0.1.15",
+    "batch": "~0.3.2"
+  },
+  "devDependencies": {
+    "mocha": "~1.9.0",
+    "should": "~1.2.2"
+  }
+}
