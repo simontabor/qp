@@ -19,7 +19,10 @@
   "dependencies": {
     "redis": "~0.8.3",
     "hiredis": "~0.1.15",
-    "batch": "~0.3.2"
+    "batch": "~0.3.2",
+    "express": "~3.2.5",
+    "ejs": "~0.8.4",
+    "socket.io": "~0.9.14"
   },
   "devDependencies": {
     "mocha": "~1.9.0",
