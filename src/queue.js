@@ -1,10 +1,8 @@
 var Batch = require('batch');
 
-var Redis = require('./redis');
+var redis = require('./redis');
 var Job = require('./job');
 var Worker = require('./worker');
-
-var redis = new Redis();
 
 var Queue = module.exports = function(name) {
   this.name = name;
@@ -22,7 +20,6 @@ Queue.prototype.create = Queue.prototype.createJob = function(data) {
 
   var job = new Job(data);
   job.queue = this;
-  job.redis = this.redis;
 
   return job;
 

@@ -1,11 +1,10 @@
 var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 
-var Redis = require('./redis');
+var redis = require('./redis');
 
 var Worker = module.exports = function(queue) {
-  var redis = new Redis();
-  this.redis = redis.client();
+  this.redis = redis.createClient();
   this.queue = queue;
 };
 

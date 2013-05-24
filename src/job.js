@@ -1,5 +1,7 @@
 var Batch = require('batch');
 
+var redis = require('./redis');
+
 var f = function(e,r){
   if (e) console.log(e);
 };
@@ -7,7 +9,7 @@ var f = function(e,r){
 var Job = module.exports = function(data) {
   this.data = data;
   this.state = 'unsaved';
-
+  this.redis = redis.client();
 };
 
 Job.prototype.getID = function(cb) {
@@ -95,13 +97,33 @@ Job.prototype._processInfo = function(info) {
   this.data = JSON.parse(info.data);
   this.state = info.state;
   this.type = info.type;
+  this.created_at = new Date(info.created_at);
 
+  if (info.completed_at) this.completed_at = new Date(info.completed_at);
   if (info.updated_at) this.updated_at = new Date(info.updated_at);
 
-  this.created_at = new Date(info.created_at);
 };
 
-Job.prototype.done = function() {
-  console.log(new Date());
+Job.prototype.remove = function(cb) {
+  var r = this.redis.multi();
+
+  r.srem('qp:' + this.queue.name + '.' + this.state, this.id);
+  r.del('qp:job:' + this.queue.name + '.' + this.id);
+};
+
+Job.prototype.done = function(err, msg) {
+  var self = this;
+
+  if (err) return this.error(err);
+
+  var r = this.redis.multi();
+
+  this
+    .set('completed_at', Date.now(), r)
+    .setState('completed', r);
+
+  r.exec(function() {
+    self.worker.process();
+  });
   this.worker.process();
 };

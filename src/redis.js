@@ -1,11 +1,9 @@
 var redis = require('redis');
 
-var R = module.exports = function() {};
-
-R.prototype.createClient = function(){
+exports.createClient = function(){
   return redis.createClient();
 };
 
-R.prototype.client = function() {
-  return this._client || (this._client = this.createClient());
+exports.client = function() {
+  return exports._client || (exports._client = exports.createClient());
 };
