@@ -47,7 +47,7 @@ q.process(3, function(job, done) {
 });
 
 // or just default to one at a time
-dr.process(function(job, done) {
+q.process(function(job, done) {
   setTimeout(done, 1000);
 });
 ```
