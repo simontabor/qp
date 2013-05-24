@@ -125,5 +125,4 @@ Job.prototype.done = function(err, msg) {
   r.exec(function() {
     self.worker.process();
   });
-  this.worker.process();
 };

@@ -1,7 +1,7 @@
 qp
 ==
 
-Efficient queue manager/processer in node.js
+Efficient queue manager/processor in node.js
 
 ## Install
 

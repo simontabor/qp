@@ -23,8 +23,3 @@ Worker.prototype.process = function() {
     self.emit('job', job);
   });
 };
-
-
-
-
-
