@@ -69,13 +69,15 @@ Job.prototype.set = function(key, val, r, cb){
 Job.prototype.setState = function(state, r, cb) {
   if (!r) r = this.redis;
 
-  r.srem('qp:' + this.queue.name + '.' + this.state, this.id, f);
+  r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
 
   this.state = state;
 
   this.set('state', state, r);
 
-  r.sadd('qp:' + this.queue.name + '.' + state, this.id, f);
+  r.zadd('qp:' + this.queue.name + '.' + state, this.id, this.id, f);
+
+  this.emit('state', state, r);
 
   return this;
 
@@ -104,10 +106,64 @@ Job.prototype._processInfo = function(info) {
 
 };
 
+Job.prototype.toJSON = function() {
+  return {
+    id: this.id,
+    queue: this.queue.name,
+    data: this.data,
+    state: this.state,
+    created_at: this.created_at
+  };
+};
+
+Job.prototype.progress = function(done, total) {
+  var progress = ~~(done / total * 100);
+
+  this.set('progress', progress);
+
+  this.emit('progress', {
+    done: done,
+    total: total,
+    progress: progress
+  });
+
+  return this;
+};
+
+Job.prototype.log = function(msg) {
+  this.redis.rpush('qp:job:' + this.queue.name + ':log.' + this.id, msg);
+  this.emit('log', msg);
+
+  return this;
+};
+
+Job.prototype.getLog = function(cb) {
+  this.redis.lrange('qp:job:' + this.queue.name + ':log.' + this.id, 0, -1, cb);
+};
+
+
+Job.prototype.emit = function(type, msg, r) {
+  if (!r) r = this.redis;
+
+  var data = {
+    type: type,
+    queue: this.queue.name,
+    job: this.toJSON(),
+    message: msg
+  };
+
+  r.publish('qp:events', JSON.stringify(data));
+};
+
+
 Job.prototype.remove = function(cb) {
   var r = this.redis.multi();
+  this._remove(r);
+  r.exec(cb);
+};
 
-  r.srem('qp:' + this.queue.name + '.' + this.state, this.id);
+Job.prototype._remove = function(r) {
+  r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
   r.del('qp:job:' + this.queue.name + '.' + this.id);
 };
 
@@ -126,3 +182,4 @@ Job.prototype.done = function(err, msg) {
     self.worker.process();
   });
 };
+

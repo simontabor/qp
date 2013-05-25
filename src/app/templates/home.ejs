@@ -1,5 +1,60 @@
-<% include head %>
+<html>
+<head>
+  <title><%= name %></title>
+  <% include style %>
+</head>
+<body>
 
+  <header>
+    <div class="inner">
+      <h1><%= name %></h1>
+      <h2>queues</h2>
+    </div>
+  </header>
 
+  <div class="inner" role="main">
 
-<% include foot %>
+    <ul id="queues">
+      <% for (var i = 0; i < queues.length; i++) { %>
+        <li data-name="<%= queues[i].name %>">
+          <h3><%= queues[i].name %></h3>
+          <h4 class="active"><span><%= queues[i].data.active %></span> <small>active</small></h4>
+          <h5 class="inactive"><span><%= queues[i].data.inactive %></span> <small>queued</small></h5>
+          <h5 class="completed"><span><%= queues[i].data.completed %></span> <small>completed</small></h5>
+        </li>
+      <% } %>
+
+    </ul>
+
+  </div>
+
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script src="http://localhost:3001/socket.io/socket.io.js"></script>
+
+  <script>
+  var socket = io.connect('http://localhost:3001');
+  socket.on('state', function (data) {
+    var q = $('li[data-name='+data.queue+']')
+
+    console.log(data);
+    for (var i in data.queueInfo) {
+      q.find('.'+i+' span').text(data.queueInfo[i]);
+    }
+  });
+
+  socket.on('progress', function (data) {
+    console.log(data);
+  });
+
+  socket.on('queue', function (data) {
+    console.log(data);
+  });
+
+  socket.on('log', function (data) {
+    console.log(data);
+  });
+
+  </script>
+
+</body>
+</html>

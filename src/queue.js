@@ -9,13 +9,6 @@ var Queue = module.exports = function(name) {
   this.redis = redis.client();
 };
 
-
-Queue.prototype._removeJob = function(job, r) {
-  if (!r) r = this.redis;
-
-  r.zrem('qp:' + this.name + '.' + job.state, job.id);
-};
-
 Queue.prototype.create = Queue.prototype.createJob = function(data) {
 
   var job = new Job(data);
@@ -63,6 +56,7 @@ Queue.prototype._spawnWorker = function(cb) {
     job.worker = w;
 
     job.getInfo(function() {
+      job.setState('active');
       cb(job, job.done.bind(job));
     });
 
@@ -83,4 +77,49 @@ Queue.prototype.process = function(concurrency, cb) {
     this._spawnWorker(cb);
   }
 
+};
+
+Queue.prototype.numJobs = function(states, cb) {
+  var self = this;
+
+  if (!Array.isArray(states)) states = [states];
+
+  var data = {};
+
+  var batch = new Batch();
+
+  states.forEach(function(state) {
+    batch.push(function(done) {
+      self.redis.zcard('qp:' + self.name + '.' + state, function(e, r) {
+        data[state] = r;
+        done();
+      });
+    });
+  });
+
+  batch.end(function() {
+    cb(null, data);
+  });
+
+};
+
+Queue.prototype.flush = function(cb) {
+  var r = this.redis.multi();
+
+  r.srem('qp:job:types', this.name);
+};
+
+Queue.prototype.clear = function(cb) {
+  var self = this;
+
+  var r = self.redis.multi();
+  self.redis.zrange('qp:' + self.name + '.completed', 0, -1, function(e, members){
+    for (var i = 0; i < members.length; i++) {
+      var job = self.create();
+      job.id = members[i];
+      job.state = 'completed';
+      job._remove(r);
+    }
+    r.exec(cb);
+  });
 };
