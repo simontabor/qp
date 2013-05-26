@@ -96,11 +96,18 @@ Job.prototype.getInfo = function(cb) {
 };
 
 Job.prototype._processInfo = function(info) {
-  this.data = JSON.parse(info.data);
+  try {
+    this.data = JSON.parse(info.data || {});
+  } catch(e) {
+    console.log('error parsing json');
+    console.error(e);
+    this.data = {};
+  }
   this.state = info.state;
   this.type = info.type;
   this.created_at = new Date(+info.created_at);
   this._progress = info._progress;
+  this._attempts = info._attempts;
 
   if (info.completed_at) this.completed_at = new Date(+info.completed_at);
   if (info.updated_at) this.updated_at = new Date(+info.updated_at);
@@ -131,6 +138,12 @@ Job.prototype.progress = function(done, total) {
     total: total,
     progress: progress
   });
+
+  return this;
+};
+
+Job.prototype.attempts = function(num) {
+  this.set('_attempts', num);
 
   return this;
 };
@@ -176,7 +189,9 @@ Job.prototype._remove = function(r) {
 Job.prototype.done = function(err, msg) {
   var self = this;
 
-  if (err) return this.error(err);
+  if (err) {
+
+  }
 
   var r = this.redis.multi();
 

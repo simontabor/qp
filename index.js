@@ -5,8 +5,10 @@ var redis = require('./src/redis');
 
 var QP = module.exports = function() {
   this.queues = {};
+};
 
-  this.redis = redis.client();
+QP.prototype.redisClient = function(func) {
+  redis.createClient = func;
 };
 
 QP.prototype.getQueue = function(name) {
@@ -18,5 +20,5 @@ QP.prototype.createServer = function(name) {
 };
 
 QP.prototype.getQueues = function(cb) {
-  this.redis.smembers('qp:job:types', cb);
+  redis.client().smembers('qp:job:types', cb);
 };
