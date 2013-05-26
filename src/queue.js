@@ -103,6 +103,29 @@ Queue.prototype.numJobs = function(states, cb) {
 
 };
 
+Queue.prototype.getJobs = function(state, from, to, cb) {
+  var self = this;
+
+  self.redis.zrange('qp:' + this.name + '.' + state, from, to, function(err, jobs) {
+
+    var batch = new Batch();
+    jobs.forEach(function(id) {
+
+      batch.push(function(done) {
+        var job = self.create();
+        job.id = id;
+        job.getInfo(function() {
+          job.toJSON(true);
+          done(null, job);
+        });
+      });
+
+
+    });
+    batch.end(cb);
+  });
+};
+
 Queue.prototype.flush = function(cb) {
   var r = this.redis.multi();
 

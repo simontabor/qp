@@ -99,27 +99,32 @@ Job.prototype._processInfo = function(info) {
   this.data = JSON.parse(info.data);
   this.state = info.state;
   this.type = info.type;
-  this.created_at = new Date(info.created_at);
+  this.created_at = new Date(+info.created_at);
+  this._progress = info._progress;
 
-  if (info.completed_at) this.completed_at = new Date(info.completed_at);
-  if (info.updated_at) this.updated_at = new Date(info.updated_at);
+  if (info.completed_at) this.completed_at = new Date(+info.completed_at);
+  if (info.updated_at) this.updated_at = new Date(+info.updated_at);
 
 };
 
-Job.prototype.toJSON = function() {
-  return {
+Job.prototype.toJSON = function(set) {
+  var json = {
     id: this.id,
     queue: this.queue.name,
     data: this.data,
     state: this.state,
-    created_at: this.created_at
+    created_at: this.created_at,
+    progress: this._progress,
+    completed_at: this.completed_at
   };
+  if (set) this.json = json;
+  return json;
 };
 
 Job.prototype.progress = function(done, total) {
   var progress = ~~(done / total * 100);
 
-  this.set('progress', progress);
+  this.set('_progress', progress);
 
   this.emit('progress', {
     done: done,
@@ -165,6 +170,7 @@ Job.prototype.remove = function(cb) {
 Job.prototype._remove = function(r) {
   r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
   r.del('qp:job:' + this.queue.name + '.' + this.id);
+  r.del('qp:job:' + this.queue.name + ':log.' + this.id);
 };
 
 Job.prototype.done = function(err, msg) {

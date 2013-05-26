@@ -1,42 +1,42 @@
-<html>
-<head>
-  <title><%= name %></title>
-  <% include style %>
-</head>
-<body>
-
-  <header>
-    <div class="inner">
-      <h1><%= name %></h1>
-      <h2>queues</h2>
-    </div>
-  </header>
-
-  <div class="inner" role="main">
-
+<% include head %>
     <ul id="queues">
-      <% for (var i = 0; i < queues.length; i++) { %>
-        <li data-name="<%= queues[i].name %>">
-          <h3><%= queues[i].name %></h3>
-          <h4 class="active"><span><%= queues[i].data.active %></span> <small>active</small></h4>
-          <h5 class="inactive"><span><%= queues[i].data.inactive %></span> <small>queued</small></h5>
-          <h5 class="completed"><span><%= queues[i].data.completed %></span> <small>completed</small></h5>
-        </li>
+      <% for (var i = 0; i < queues.length; i++) {
+      var queue = queues[i];
+      %>
+        <% include queueList %>
       <% } %>
 
     </ul>
 
   </div>
 
-  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-  <script src="http://localhost:3001/socket.io/socket.io.js"></script>
+  <div id="base-queue" style="display:none">
+    <% var queue = {name:'test', data:{}}; %>
+    <% include queueList %>
+  </div>
+
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
 
   <script>
-  var socket = io.connect('http://localhost:3001');
+  var socket = io.connect();
+
+  var queueList = $('#base-queue li');
+
+
+
+  $('#queues').on('click', 'li', function() {
+    window.location = '/' + $(this).data('name');
+  });
+
   socket.on('state', function (data) {
     var q = $('li[data-name='+data.queue+']')
 
-    console.log(data);
+    if (!q.length) {
+      q = queueList.appendTo('#queues').data('name', data.queue);
+      q.find('h3').text(data.queue);
+    }
+
     for (var i in data.queueInfo) {
       q.find('.'+i+' span').text(data.queueInfo[i]);
     }

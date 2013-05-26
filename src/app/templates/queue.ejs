@@ -1,0 +1,54 @@
+<% include head %>
+
+    <ul id="queue-info">
+      <li class="inactive">
+        <%= queueData.nums.inactive %>
+      </li>
+      <li class="active">
+        <%= queueData.nums.active %>
+      </li>
+      <li class="completed">
+        <%= queueData.nums.completed %>
+      </li>
+    </ul>
+  </div>
+
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+  var queue = '<%= queue %>'
+  var socket = io.connect();
+  var qsocket = io.connect('/queue');
+  qsocket.on('connect', function() {
+    qsocket.emit('init', {queue: queue});
+  });
+  // setTimeout(function() {
+
+  // },2000);
+
+  var queueInfo = $('#queue-info');
+
+  socket.on('state', function (data) {
+    if (data.queue !== queue) return;
+
+    console.log(data.queue, queue);
+
+  });
+
+  socket.on('progress', function (data) {
+    console.log(data);
+  });
+
+  socket.on('queue', function (data) {
+    console.log(data);
+  });
+
+  socket.on('log', function (data) {
+    console.log(data);
+  });
+
+  </script>
+
+</body>
+</html>
