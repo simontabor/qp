@@ -41,12 +41,16 @@ Job.prototype._save = function(r, cb) {
 
   r.sadd('qp:job:types', self.queue.name);
 
+  self._saved = true;
+
   self.getID(function() {
 
     self
       .set('type', self.queue.name, r)
       .set('created_at', Date.now(), r)
       .set('data', self.data, r)
+      .set('_timeout', self._timeout)
+      .set('_attempts', self._attempts)
       .setState('inactive', r);
 
     r.rpush('qp:' + self.queue.name +':jobs', self.id);
@@ -58,6 +62,10 @@ Job.prototype._save = function(r, cb) {
 
 Job.prototype.set = function(key, val, r, cb){
   this[key] = val;
+
+  if (!this._saved) {
+    return this;
+  }
 
   if (typeof val === 'object') val = JSON.stringify(val || {});
 
@@ -108,6 +116,7 @@ Job.prototype._processInfo = function(info) {
   this.created_at = new Date(+info.created_at);
   this._progress = info._progress;
   this._attempts = info._attempts;
+  this._timeout = info._timeout;
 
   if (info.completed_at) this.completed_at = new Date(+info.completed_at);
   if (info.updated_at) this.updated_at = new Date(+info.updated_at);
@@ -122,7 +131,8 @@ Job.prototype.toJSON = function(set) {
     state: this.state,
     created_at: this.created_at,
     progress: this._progress,
-    completed_at: this.completed_at
+    completed_at: this.completed_at,
+    timeout: this._timeout
   };
   if (set) this.json = json;
   return json;
@@ -144,6 +154,12 @@ Job.prototype.progress = function(done, total) {
 
 Job.prototype.attempts = function(num) {
   this.set('_attempts', num);
+
+  return this;
+};
+
+Job.prototype.timeout = function(num) {
+  this.set('_timeout', num);
 
   return this;
 };
@@ -186,11 +202,30 @@ Job.prototype._remove = function(r) {
   r.del('qp:job:' + this.queue.name + ':log.' + this.id);
 };
 
-Job.prototype.done = function(err, msg) {
+Job.prototype.fail = function(err) {
   var self = this;
 
-  if (err) {
+  var r = this.redis.multi();
 
+  this
+    .set('failed_at', Date.now(), r)
+    .setState('failed', r);
+
+  r.exec(function() {
+    self.worker.process();
+  });
+
+};
+
+Job.prototype.done = function(err) {
+  var self = this;
+
+  // clear any fail timeout if there is one
+  clearTimeout(self.__timeout);
+
+  if (err) {
+    self.fail(err);
+    return;
   }
 
   var r = this.redis.multi();

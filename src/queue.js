@@ -56,6 +56,14 @@ Queue.prototype._spawnWorker = function(cb) {
     job.worker = w;
 
     job.getInfo(function() {
+
+      // if theres a timeout - set it up
+      if (job._timeout) {
+        job.__timeout = setTimeout(function() {
+          job.done('timeout');
+        }, job._timeout);
+      }
+
       job.setState('active');
       cb(job, job.done.bind(job));
     });
