@@ -54,6 +54,7 @@ Queue.prototype._spawnWorker = function(cb) {
     var job = self.create();
     job.id = jobID;
     job.worker = w;
+    job._saved = true;
 
     job.getInfo(function() {
 
