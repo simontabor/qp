@@ -51,12 +51,20 @@ Job.prototype._save = function(r, cb) {
       .set('data', self.data, r)
       .set('_timeout', self._timeout)
       .set('_attempts', self._attempts)
-      .setState('inactive', r);
-
-    r.rpush('qp:' + self.queue.name +':jobs', self.id);
+      .enqueue(r);
 
     cb();
   });
+};
+
+Job.prototype.enqueue = function(r) {
+
+  if (this._attempts) r.hincrby('qp:job:' + this.queue.name + '.' + this.id, '_attempted', 1);
+  r.rpush('qp:' + this.queue.name +':jobs', this.id);
+
+  this.setState('inactive', r);
+
+  return this;
 };
 
 
@@ -115,8 +123,10 @@ Job.prototype._processInfo = function(info) {
   this.type = info.type;
   this.created_at = new Date(+info.created_at);
   this._progress = info._progress;
-  this._attempts = info._attempts;
+  this._attempts = info._attempts && +info._attempts;
+  this._attempted = +(info._attempted || 0);
   this._timeout = info._timeout;
+  this.error_message = info.error_message;
 
   if (info.completed_at) this.completed_at = new Date(+info.completed_at);
   if (info.updated_at) this.updated_at = new Date(+info.updated_at);
@@ -132,7 +142,10 @@ Job.prototype.toJSON = function(set) {
     created_at: this.created_at,
     progress: this._progress,
     completed_at: this.completed_at,
-    timeout: this._timeout
+    attempts: this._attempts,
+    attempted: this._attempted,
+    timeout: this._timeout,
+    error_message: this.error_message
   };
   if (set) this.json = json;
   return json;
@@ -202,6 +215,27 @@ Job.prototype._remove = function(r) {
   r.del('qp:job:' + this.queue.name + ':log.' + this.id);
 };
 
+Job.prototype._finish = function(r) {
+  var self = this;
+
+  r.exec(function() {
+    self.worker.process();
+  });
+};
+
+Job.prototype.error = function(err) {
+  this.log('attempt failed:' + err);
+
+  if (this._attempts && (this._attempts > this._attempted || !this._attempted)) {
+    var r = this.redis.multi();
+    this.enqueue(r);
+    this._finish(r);
+    return;
+  }
+
+  this.fail(err);
+};
+
 Job.prototype.fail = function(err) {
   var self = this;
 
@@ -209,11 +243,10 @@ Job.prototype.fail = function(err) {
 
   this
     .set('failed_at', Date.now(), r)
-    .setState('failed', r);
+    .setState('failed', r)
+    .set('error_message', err);
 
-  r.exec(function() {
-    self.worker.process();
-  });
+  this._finish(r);
 
 };
 
@@ -224,7 +257,7 @@ Job.prototype.done = function(err) {
   clearTimeout(self.__timeout);
 
   if (err) {
-    self.fail(err);
+    self.error(err);
     return;
   }
 
@@ -234,8 +267,6 @@ Job.prototype.done = function(err) {
     .set('completed_at', Date.now(), r)
     .setState('completed', r);
 
-  r.exec(function() {
-    self.worker.process();
-  });
+  this._finish(r);
 };
 
