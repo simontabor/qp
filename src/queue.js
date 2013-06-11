@@ -141,11 +141,17 @@ Queue.prototype.flush = function(cb) {
   r.srem('qp:job:types', this.name);
 };
 
-Queue.prototype.clear = function(cb) {
+Queue.prototype.clear = function(type, cb) {
   var self = this;
 
+  if (!cb && typeof type === 'function') {
+    cb = type;
+    type = 'completed';
+  }
+  if (!type) type = 'completed';
+
   var r = self.redis.multi();
-  self.redis.zrange('qp:' + self.name + '.completed', 0, -1, function(e, members){
+  self.redis.zrange('qp:' + self.name + '.' + type, 0, -1, function(e, members){
     for (var i = 0; i < members.length; i++) {
       var job = self.create();
       job.id = members[i];
