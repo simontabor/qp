@@ -48,10 +48,17 @@ Job.prototype._save = function(r, cb) {
     self
       .set('type', self.queue.name, r)
       .set('created_at', Date.now(), r)
-      .set('data', self.data, r)
-      .set('_timeout', self._timeout)
-      .set('_attempts', self._attempts)
-      .enqueue(r);
+      .set('data', self.data, r);
+
+    if (self._timeout) {
+      self.set('_timeout', self._timeout, r);
+    }
+
+    if (self._attempts) {
+      self.set('_attempts', self._attempts, r);
+    }
+
+    self.enqueue(r);
 
     cb();
   });
@@ -123,9 +130,9 @@ Job.prototype._processInfo = function(info) {
   this.type = info.type;
   this.created_at = new Date(+info.created_at);
   this._progress = info._progress;
-  this._attempts = info._attempts && +info._attempts;
+  this._attempts = info._attempts && !isNaN(+info._attempts) && +info._attempts;
   this._attempted = +(info._attempted || 0);
-  this._timeout = info._timeout;
+  this._timeout = info._timeout && !isNaN(+info._timeout) && +info._timeout;
   this.error_message = info.error_message;
 
   if (info.completed_at) this.completed_at = new Date(+info.completed_at);
@@ -255,7 +262,6 @@ Job.prototype.done = function(err) {
 
   // clear any fail timeout if there is one
   clearTimeout(self.__timeout);
-
   if (err) {
     self.error(err);
     return;
