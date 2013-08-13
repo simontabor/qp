@@ -6,8 +6,9 @@ var f = function(e,r){
   if (e) console.log(e);
 };
 
-var Job = module.exports = function(data) {
+var Job = module.exports = function(data, queue) {
   this.data = data;
+  this.queue = queue;
   this.state = 'unsaved';
   this.redis = redis.client();
 };

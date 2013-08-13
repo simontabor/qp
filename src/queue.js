@@ -4,18 +4,15 @@ var redis = require('./redis');
 var Job = require('./job');
 var Worker = require('./worker');
 
-var Queue = module.exports = function(name) {
+var Queue = module.exports = function(name, qp) {
   this.name = name;
   this.redis = redis.client();
+  this.qp = qp;
 };
 
 Queue.prototype.create = Queue.prototype.createJob = function(data) {
-
-  var job = new Job(data);
-  job.queue = this;
-
+  var job = new Job(data, this);
   return job;
-
 };
 
 Queue.prototype.multiSave = function(jobs, cb) {
@@ -48,7 +45,12 @@ Queue.prototype.multiSave = function(jobs, cb) {
 Queue.prototype._spawnWorker = function(cb) {
   var self = this;
 
-  var w = new Worker(this);
+  var w;
+  if (this.qp.opts.noBlock) {
+    w = new Worker(this, this.redis);
+  } else {
+    w = new Worker(this);
+  }
 
   w.on('job', function(jobID) {
     var job = self.create();
