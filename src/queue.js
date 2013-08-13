@@ -4,6 +4,8 @@ var redis = require('./redis');
 var Job = require('./job');
 var Worker = require('./worker');
 
+var debug = require('debug')('qp:Queue');
+
 var Queue = module.exports = function(name, qp) {
   this.name = name;
   this.redis = redis.client();
@@ -44,6 +46,8 @@ Queue.prototype.multiSave = function(jobs, cb) {
 
 Queue.prototype._spawnWorker = function(cb) {
   var self = this;
+
+  debug('spawning worker');
 
   var w;
   if (this.qp.opts.noBlock) {
@@ -97,6 +101,8 @@ Queue.prototype.numJobs = function(states, cb) {
 
   var data = {};
 
+  debug('getting number of jobs');
+
   var batch = new Batch();
 
   states.forEach(function(state) {
@@ -140,11 +146,15 @@ Queue.prototype.getJobs = function(state, from, to, cb) {
 Queue.prototype.flush = function(cb) {
   var r = this.redis.multi();
 
+  debug('flushing');
+
   r.srem('qp:job:types', this.name);
 };
 
 Queue.prototype.clear = function(type, cb) {
   var self = this;
+
+  debug('clearing');
 
   if (!cb && typeof type === 'function') {
     cb = type;

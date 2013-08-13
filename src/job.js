@@ -1,6 +1,7 @@
 var Batch = require('batch');
 
 var redis = require('./redis');
+var debug = require('debug')('qp:Job');
 
 var f = function(e,r){
   if (e) console.log(e);
@@ -15,6 +16,8 @@ var Job = module.exports = function(data, queue) {
 
 Job.prototype.getID = function(cb) {
   var self = this;
+
+  debug('getting id');
 
   if (this.id) return cb(this.id);
 
@@ -42,6 +45,8 @@ Job.prototype._save = function(r, cb) {
 
   r.sadd('qp:job:types', self.queue.name);
 
+  debug('saving');
+
   self._saved = true;
 
   self.getID(function() {
@@ -66,6 +71,8 @@ Job.prototype._save = function(r, cb) {
 };
 
 Job.prototype.enqueue = function(r) {
+
+  debug('enqueueing');
 
   if (this._attempts) r.hincrby('qp:job:' + this.queue.name + '.' + this.id, '_attempted', 1);
   r.rpush('qp:' + this.queue.name +':jobs', this.id);
@@ -93,6 +100,8 @@ Job.prototype.set = function(key, val, r, cb){
 Job.prototype.setState = function(state, r, cb) {
   if (!r) r = this.redis;
 
+  debug('setting state');
+
   r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
 
   this.state = state;
@@ -111,6 +120,8 @@ Job.prototype.getInfo = function(cb) {
   var self = this;
 
   if (!this.id) return cb(null);
+
+  debug('getting info');
 
   this.redis.hgetall('qp:job:' + this.queue.name + '.' + this.id, function(e, data) {
     self._processInfo(data);
@@ -161,6 +172,8 @@ Job.prototype.toJSON = function(set) {
 
 Job.prototype.progress = function(done, total) {
   var progress = ~~(done / total * 100);
+
+  debug('setting progress');
 
   this.set('_progress', progress);
 
@@ -226,6 +239,8 @@ Job.prototype._remove = function(r) {
 Job.prototype._finish = function(r) {
   var self = this;
 
+  debug('finishing job');
+
   r.exec(function() {
     self.worker.process();
   });
@@ -247,6 +262,8 @@ Job.prototype.error = function(err) {
 Job.prototype.fail = function(err) {
   var self = this;
 
+  debug('failed job');
+
   var r = this.redis.multi();
 
   this
@@ -260,6 +277,8 @@ Job.prototype.fail = function(err) {
 
 Job.prototype.done = function(err) {
   var self = this;
+
+  debug('completed job');
 
   // clear any fail timeout if there is one
   clearTimeout(self.__timeout);

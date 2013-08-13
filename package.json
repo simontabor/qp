@@ -22,7 +22,8 @@
     "batch": "~0.3.2",
     "express": "~3.2.5",
     "ejs": "~0.8.4",
-    "socket.io": "~0.9.14"
+    "socket.io": "~0.9.14",
+    "debug": "~0.7.2"
   },
   "devDependencies": {
     "mocha": "~1.9.0",
