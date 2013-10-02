@@ -1,6 +1,6 @@
 {
   "name": "qp",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Queue management, similar to that of kue",
   "main": "index.js",
   "scripts": {
