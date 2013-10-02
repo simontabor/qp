@@ -1,4 +1,6 @@
+var util = require('util');
 var Batch = require('batch');
+var EventEmitter = require('events').EventEmitter;
 
 var redis = require('./redis');
 var debug = require('debug')('qp:Job');
@@ -13,6 +15,8 @@ var Job = module.exports = function(data, queue) {
   this.state = 'unsaved';
   this.redis = redis.client();
 };
+
+util.inherits(Job, EventEmitter);
 
 Job.prototype.getID = function(cb) {
   var self = this;
@@ -110,7 +114,7 @@ Job.prototype.setState = function(state, r, cb) {
 
   r.zadd('qp:' + this.queue.name + '.' + state, this.id, this.id, f);
 
-  this.emit('state', state, r);
+  this._emit('state', state, r);
 
   return this;
 
@@ -177,7 +181,7 @@ Job.prototype.progress = function(done, total) {
 
   this.set('_progress', progress);
 
-  this.emit('progress', {
+  this._emit('progress', {
     done: done,
     total: total,
     progress: progress
@@ -200,7 +204,7 @@ Job.prototype.timeout = function(num) {
 
 Job.prototype.log = function(msg) {
   this.redis.rpush('qp:job:' + this.queue.name + ':log.' + this.id, msg);
-  this.emit('log', msg);
+  this._emit('log', msg);
 
   return this;
 };
@@ -210,7 +214,7 @@ Job.prototype.getLog = function(cb) {
 };
 
 
-Job.prototype.emit = function(type, msg, r) {
+Job.prototype._emit = function(type, msg, r) {
   if (!r) r = this.redis;
 
   var data = {
@@ -219,6 +223,8 @@ Job.prototype.emit = function(type, msg, r) {
     job: this.toJSON(),
     message: msg
   };
+
+  this.emit(type, data);
 
   r.publish('qp:events', JSON.stringify(data));
 };
@@ -242,7 +248,7 @@ Job.prototype._finish = function(r) {
   debug('finishing job');
 
   r.exec(function() {
-    self.worker.process();
+    self._emit('done');
   });
 };
 

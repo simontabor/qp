@@ -10,6 +10,7 @@ var Queue = module.exports = function(name, qp) {
   this.name = name;
   this.redis = redis.client();
   this.qp = qp;
+  this.workers = [];
 };
 
 Queue.prototype.create = Queue.prototype.createJob = function(data) {
@@ -56,11 +57,9 @@ Queue.prototype._spawnWorker = function(cb) {
     w = new Worker(this);
   }
 
-  w.on('job', function(jobID) {
-    var job = self.create();
-    job.id = jobID;
-    job.worker = w;
-    job._saved = true;
+  this.workers.push(w);
+
+  w.on('job', function(job) {
 
     job.getInfo(function() {
 
@@ -172,4 +171,15 @@ Queue.prototype.clear = function(type, cb) {
     }
     r.exec(cb);
   });
+};
+
+Queue.prototype.stop = function(cb) {
+  debug('stopping queue');
+
+  var batch = new Batch();
+  for (var i = 0; i < this.workers.length; i++) {
+    var w = this.workers[i];
+    batch.push(w.stop.bind(w));
+  }
+  batch.end(cb);
 };

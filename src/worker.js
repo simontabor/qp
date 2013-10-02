@@ -29,7 +29,7 @@ Worker.prototype.getNonBlockingJob = function(cb) {
     if (err || !job) {
       debug('no job, retry');
       setTimeout(function() {
-        self.getNonBlockingJob(cb);
+        self.process();
       }, self.queue.qp.opts.checkInterval || 200);
       return;
     }
@@ -48,13 +48,42 @@ Worker.prototype.getJob = function(cb) {
 Worker.prototype.process = function() {
   var self = this;
 
-  self.getJob(function(err, job) {
+  if (self.stopped) {
+    debug('worker stopped, not processing');
+    self.emit('stopped');
+    return;
+  }
+
+  self.getJob(function(err, jobID) {
     if (err) {
       debug('error getting job');
       self.emit('error', err);
       return;
     }
     debug('got job');
+
+    var job = self.queue.create();
+    job.id = jobID;
+    job.worker = self;
+    job._saved = true;
+
+    self.working = true;
+
     self.emit('job', job);
+
+    job.once('done', function() {
+      debug('job complete');
+
+      self.working = false;
+      self.process();
+    });
   });
+};
+
+Worker.prototype.stop = function(cb) {
+  this.stopped = true;
+
+  if (!this.working) return cb();
+
+  this.once('stopped', cb);
 };
