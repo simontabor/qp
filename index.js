@@ -9,7 +9,7 @@ var QP = module.exports = function(opts) {
   this.queues = {};
   this.opts = opts || {};
 
-  if (opts.cleanShutdown) {
+  if (this.opts.cleanShutdown) {
     this.cleanShutdown();
   }
 };

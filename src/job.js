@@ -90,7 +90,8 @@ Job.prototype.enqueue = function(r) {
 Job.prototype.set = function(key, val, r, cb){
   this[key] = val;
 
-  if (!this._saved) {
+  if (!this._saved || this.queue.qp.opts.noInfo) {
+    if (cb) cb();
     return this;
   }
 
@@ -226,7 +227,7 @@ Job.prototype._emit = function(type, msg, r) {
 
   this.emit(type, data);
 
-  r.publish('qp:events', JSON.stringify(data));
+  if (this.queue.qp.opts.pubSub !== false) r.publish('qp:events', JSON.stringify(data));
 };
 
 

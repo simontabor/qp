@@ -45,21 +45,28 @@ Queue.prototype.multiSave = function(jobs, cb) {
 
 };
 
-Queue.prototype._spawnWorker = function(cb) {
+Queue.prototype._spawnWorker = function(opts, cb) {
   var self = this;
 
   debug('spawning worker');
 
   var w;
   if (this.qp.opts.noBlock) {
-    w = new Worker(this, this.redis);
+    w = new Worker(this, opts, this.redis);
   } else {
-    w = new Worker(this);
+    w = new Worker(this, opts);
   }
 
   this.workers.push(w);
 
   w.on('job', function(job) {
+
+    // option not to fetch info on processing
+    if (self.qp.opts.noInfo) {
+      job.setState('active');
+      cb(job, job.done.bind(job));
+      return;
+    }
 
     job.getInfo(function() {
 
@@ -79,16 +86,20 @@ Queue.prototype._spawnWorker = function(cb) {
   w.process();
 };
 
-Queue.prototype.process = function(concurrency, cb) {
+Queue.prototype.process = function(opts, cb) {
 
   // allow concurrency not to be set
-  if (typeof concurrency == 'function' && !cb) {
-    cb = concurrency;
-    concurrency = null;
+  if (typeof opts == 'function' && !cb) {
+    cb = opts;
+    opts = {};
   }
 
-  for (var i = 0; i < (concurrency || 1); i++) {
-    this._spawnWorker(cb);
+  if (typeof opts === 'number') {
+    opts = { concurrency: opts };
+  }
+
+  for (var i = 0; i < (opts.concurrency || 1); i++) {
+    this._spawnWorker(opts, cb);
   }
 
 };
