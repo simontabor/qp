@@ -42,30 +42,40 @@ Worker.prototype.checkRate = function() {
 
   debug('checking rate');
 
-  var minBound = self.minRate * ((Date.now() - self.start) / self.rateInterval);
-  var maxBound = self.maxRate * ((Date.now() - self.start) / self.rateInterval);
+  var diff = Date.now() - self.start;
+  var minBound = self.minRate * (diff / self.rateInterval);
+  var maxBound = self.maxRate * (diff / self.rateInterval);
 
   if (self.processed > maxBound) {
-    debug('too fast - pausing');
     var ahead = self.processed - maxBound;
     self.pause();
 
-    // check again when we'll be back behind the maxbound
-    setTimeout(self.checkRate.bind(self), (self.processed - maxBound) * (self.maxRate / self.rateInterval));
+    var timeout = ahead * (self.rateInterval / self.maxRate);
+
+    // sanity for small maxRates
+    if (timeout > self.rateInterval) timeout = self.rateInterval - diff;
+
+    debug('too fast - pausing for ' + timeout + 'ms');
+    debug(self.processed + ' / ' + maxBound + ' done');
+
+    setTimeout(self.checkRate.bind(self), timeout);
     return;
   }
 
   // needs to go faster!
   if (self.processed < minBound) {
-    debug('too slow');
     var behind = minBound - self.processed;
+
+    debug('too slow, ' + behind +' jobs behind');
+
     self.paused = false;
 
     if (self.processing > self.maxProcessing) {
       debug('already spawned enough processes');
     } else {
-      debug('spawning workers');
-      for (var i = 0; i < behind; i++) self.process();
+      var numNew = Math.ceil(behind);
+      debug('spawning ' + numNew + ' workers');
+      for (var i = 0; i < numNew; i++) self.process();
     }
   }
 
@@ -118,6 +128,11 @@ Worker.prototype.process = function() {
   if (self.paused) {
     debug('worker paused, not processing');
     self.emit('paused');
+    return;
+  }
+
+  if (self.processing > self.maxProcessing) {
+    debug('too many processing, stopping');
     return;
   }
 
