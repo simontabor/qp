@@ -78,9 +78,9 @@ var q = qp.getQueue('test');
 
 // processing
 q.process({
-  concurrency: 10, // default: 1. number of workers to spawn
-  maxRate: 20, // default: Infinity (no limit). maximum number of jobs to process per `rateInterval` per worker
-  minRate: 8, // default: 0 (none). minimum number of jobs to process per `rateInterval` per worker
+  concurrency: 10, // default: 1. number of workers to spawn (if min/max rates are set then concurrency will be automatically adjusted)
+  maxRate: 20, // default: Infinity (no limit). maximum number of jobs to process per `rateInterval`
+  minRate: 8, // default: 0 (none). minimum number of jobs to process per `rateInterval`
   rateInterval: 2000, // default: 1000. number of ms to check the rates over
   checkInterval: 1000 // default: rateInterval / 10. number of ms to wait between checking the processing rate (lower = higher accuracy and less bursting)
 }, function(job, done) {
