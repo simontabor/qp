@@ -138,7 +138,7 @@ Queue.prototype.clear = function(type, cb) {
     for (var i = 0; i < members.length; i++) {
       var job = self.create();
       job.id = members[i];
-      job.state = 'completed';
+      job.state = type;
       job._remove(r);
     }
     r.exec(cb);
