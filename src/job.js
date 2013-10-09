@@ -113,7 +113,7 @@ Job.prototype.setState = function(state, r, cb) {
 
   this.set('state', state, r);
 
-  r.zadd('qp:' + this.queue.name + '.' + state, this.id, this.id, f);
+  r.zadd('qp:' + this.queue.name + '.' + state, Date.now(), this.id, f);
 
   this._emit('state', state, r);
 
