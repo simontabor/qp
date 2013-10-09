@@ -114,26 +114,26 @@ Worker.prototype.start = function() {
 Worker.prototype.stop = function(cb) {
   if (this.stopped) return;
 
-  this.stopped = true;
-
   debug('stopping');
 
   if (!cb) cb = function(){};
 
   if (!this.working || this.stopped) return cb();
 
+  this.stopped = true;
+
   this.once('stopped', cb);
 };
 
 Worker.prototype.pause = function(cb) {
-
-  this.paused = true;
 
   debug('pausing');
 
   if (!cb) cb = function(){};
 
   if (!this.working || this.paused) return cb();
+
+  this.paused = true;
 
   this.once('paused', cb);
 };
