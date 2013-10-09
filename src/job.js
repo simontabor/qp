@@ -246,6 +246,8 @@ Job.prototype._remove = function(r) {
 Job.prototype._finish = function(r) {
   var self = this;
 
+  self.finished = true;
+
   debug('finishing job');
 
   r.exec(function() {
@@ -284,6 +286,11 @@ Job.prototype.fail = function(err) {
 
 Job.prototype.done = function(err) {
   var self = this;
+
+  if (self.finished) {
+    debug('already finished');
+    return;
+  }
 
   debug('completed job');
 
