@@ -2,7 +2,7 @@ var Batch = require('batch');
 
 var redis = require('./redis');
 var Job = require('./job');
-var Worker = require('./worker');
+var Workers = require('./workers');
 
 var debug = require('debug')('qp:Queue');
 
@@ -45,46 +45,6 @@ Queue.prototype.multiSave = function(jobs, cb) {
 
 };
 
-Queue.prototype._spawnWorker = function(opts, cb) {
-  var self = this;
-
-  debug('spawning worker');
-
-  var w;
-  if (this.qp.opts.noBlock) {
-    w = new Worker(this, opts, this.redis);
-  } else {
-    w = new Worker(this, opts);
-  }
-
-  this.workers.push(w);
-
-  w.on('job', function(job) {
-
-    // option not to fetch info on processing
-    if (self.qp.opts.noInfo) {
-      job.setState('active');
-      cb(job, job.done.bind(job));
-      return;
-    }
-
-    job.getInfo(function() {
-
-      // if theres a timeout - set it up
-      if (job._timeout) {
-        job.__timeout = setTimeout(function() {
-          job.done('timeout');
-        }, job._timeout);
-      }
-
-      job.setState('active');
-      cb(job, job.done.bind(job));
-    });
-
-  });
-
-  w.process();
-};
 
 Queue.prototype.process = function(opts, cb) {
 
@@ -98,9 +58,10 @@ Queue.prototype.process = function(opts, cb) {
     opts = { concurrency: opts };
   }
 
-  for (var i = 0; i < (opts.concurrency || 1); i++) {
-    this._spawnWorker(opts, cb);
-  }
+  var workers = new Workers(this, this.redis);
+  this.workers.push(workers);
+
+  workers.process(opts, cb);
 
 };
 

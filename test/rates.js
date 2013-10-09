@@ -2,7 +2,7 @@
 
 var QP = require('../index');
 
-var qp = new QP({ noInfo: true, cleanShutdown: true });
+var qp = new QP({ noInfo: true, cleanShutdown: true, noBlock: true });
 
 var q = qp.getQueue('test');
 
@@ -20,6 +20,7 @@ q.multiSave(new Array(200), function() {
     minRate: 8,
     rateInterval: 1000
   }, function(job, done) {
+    rate++;
     setTimeout(done, 1000);
   });
 });
