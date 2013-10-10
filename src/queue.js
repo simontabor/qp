@@ -68,6 +68,11 @@ Queue.prototype.process = function(opts, cb) {
 Queue.prototype.numJobs = function(states, cb) {
   var self = this;
 
+  if (typeof states === 'function' && !cb) {
+    cb = states;
+    states = ['inactive', 'active', 'completed', 'failed', 'queued'];
+  }
+
   if (!Array.isArray(states)) states = [states];
 
   var data = {};
@@ -78,10 +83,17 @@ Queue.prototype.numJobs = function(states, cb) {
 
   states.forEach(function(state) {
     batch.push(function(done) {
-      self.redis.zcard('qp:' + self.name + '.' + state, function(e, r) {
-        data[state] = r;
-        done();
-      });
+      if (state === 'queued') {
+        self.redis.llen('qp:' + self.name + ':jobs', function(e, r) {
+          data[state] = r;
+          done();
+        });
+      } else {
+        self.redis.zcard('qp:' + self.name + '.' + state, function(e, r) {
+          data[state] = r;
+          done();
+        });
+      }
     });
   });
 
