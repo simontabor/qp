@@ -96,7 +96,9 @@ Workers.prototype.checkRate = function(opts, cb) {
 
     self.paused = false;
 
-    if (self.workers.length > self.maxProcessing) {
+    if (self.workers.some(function(w){ return w.waiting; })) {
+      debug('workers waiting, no more');
+    } else if (self.workers.length >= self.maxProcessing) {
       debug('already spawned enough processes');
     } else {
       var numNew = Math.ceil(behind);
