@@ -140,6 +140,7 @@ Workers.prototype.spawnWorker = function(opts, cb) {
 
     // option not to fetch info on processing
     if (self.qp.opts.noInfo) {
+      job.state = 'inactive';
       job.setState('active');
       cb(job, job.done.bind(job));
       return;
