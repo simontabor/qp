@@ -9,11 +9,14 @@ var f = function(e,r){
   if (e) console.log(e);
 };
 
-var Job = module.exports = function(data, queue) {
+var Job = module.exports = function(queue, data, opts) {
   this.data = data;
   this.queue = queue;
   this.state = 'unsaved';
   this.redis = redis.client();
+
+  // doesnt currently do anything, the job uses the queue options
+  this.opts = opts || {};
 };
 
 util.inherits(Job, EventEmitter);
@@ -23,11 +26,13 @@ Job.prototype.getID = function(cb) {
 
   debug('getting id');
 
-  if (this.id) return cb(this.id);
+  // this allows the user to set an ID themselves
+  if (this.id) return cb(null, this.id);
 
+  // if no id is set, increment a counter and use that (redis round trip, not recommended)
   this.redis.incr('qp:' + this.queue.name + '.ids', function(err, id) {
     self.id = id;
-    cb(id);
+    cb(err, id);
   });
 };
 
@@ -36,7 +41,9 @@ Job.prototype.save = function(cb) {
 
   var r = self.redis.multi();
 
-  self._save(r, function() {
+  self._save(r, function(err) {
+    if (err) return cb(err);
+
     r.exec(cb);
   });
 
@@ -51,9 +58,9 @@ Job.prototype._save = function(r, cb) {
 
   debug('saving');
 
-  self._saved = true;
 
-  self.getID(function() {
+  var save = function() {
+    self._saved = true;
 
     self
       .set('type', self.queue.name, r)
@@ -71,6 +78,28 @@ Job.prototype._save = function(r, cb) {
     self.enqueue(r);
 
     cb();
+  };
+
+  self.getID(function() {
+
+    if (self.queue.getOption('unique')) {
+      debug('checking uniqueness');
+
+      this.redis.sadd('qp:' + this.queue.name + ':unique', function(err, res) {
+        // not added
+        if (!res) {
+          debug('already queued');
+          return cb('already in queue');
+        }
+
+        save();
+      });
+
+      return;
+    }
+
+    save();
+
   });
 };
 
@@ -90,7 +119,7 @@ Job.prototype.enqueue = function(r) {
 Job.prototype.set = function(key, val, r, cb){
   this[key] = val;
 
-  if (!this._saved || this.queue.qp.opts.noInfo) {
+  if (!this._saved || this.queue.getOption('noInfo')) {
     if (cb) cb();
     return this;
   }
@@ -227,7 +256,7 @@ Job.prototype._emit = function(type, msg, r) {
 
   this.emit(type, data);
 
-  if (this.queue.qp.opts.pubSub !== false) r.publish('qp:events', JSON.stringify(data));
+  if (this.queue.getOption('pubSub') !== false) r.publish('qp:events', JSON.stringify(data));
 };
 
 
@@ -241,6 +270,10 @@ Job.prototype._remove = function(r) {
   r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
   r.del('qp:job:' + this.queue.name + '.' + this.id);
   r.del('qp:job:' + this.queue.name + ':log.' + this.id);
+
+  if (this.queue.getOption('unique')) {
+    r.srem('qp:' + this.queue.name + ':unique', this.id);
+  }
 };
 
 Job.prototype._finish = function(r) {
@@ -250,18 +283,31 @@ Job.prototype._finish = function(r) {
 
   debug('finishing job');
 
+  // this is handy for fast queues and for unique queues (avoids data conflicts if id's are reused)
+  if (self.queue.getOption('deleteOnFinish')) {
+    self._remove(r);
+  } else if (self.queue.getOption('unique')) {
+    r.srem('qp:' + self.queue.name + ':unique', self.id);
+  }
+
   r.exec(function() {
     self._emit('done');
   });
 };
 
 Job.prototype.error = function(err) {
-  this.log('attempt failed:' + err);
+  var self = this;
 
-  if (this._attempts && (this._attempts > this._attempted || !this._attempted)) {
-    var r = this.redis.multi();
-    this.enqueue(r);
-    this._finish(r);
+  self.log('attempt failed:' + err);
+
+  if (self._attempts && (self._attempts > self._attempted || !self._attempted)) {
+    var r = self.redis.multi();
+    debug('requeueing');
+    self.enqueue(r);
+    self.finished = true;
+    r.exec(function() {
+      self._emit('done');
+    });
     return;
   }
 

@@ -1,6 +1,4 @@
 var Queue = require('./src/queue');
-
-var Server = require('./src/server');
 var redis = require('./src/redis');
 
 var Batch = require('batch');
@@ -18,12 +16,22 @@ QP.prototype.redisClient = function(func) {
   redis.createClient = func;
 };
 
-QP.prototype.getQueue = function(name) {
-  return this.queues[name] || (this.queues[name] = new Queue(name, this));
+QP.prototype.getQueue = function(name, opts) {
+  var q = this.queues[name] || (this.queues[name] = new Queue(this, name));
+
+  // this will overwrite the queue's options if it already exists and if new ones are specified
+  q.opts = opts || q.opts || {};
+  return q;
 };
 
-QP.prototype.createServer = function(name) {
-  return new Server(name, this);
+QP.prototype.createServer = function(name, port) {
+  // this will throw if qp-server isnt installed
+  var Server = require('qp-server');
+
+  var server = new Server(this, name);
+  if (port) server.listen(port);
+
+  return server;
 };
 
 QP.prototype.getQueues = function(cb) {

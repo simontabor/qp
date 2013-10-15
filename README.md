@@ -1,7 +1,9 @@
 qp
 ==
 
-Efficient queue manager/processor in node.js
+Efficient queue manager/processor in node.js.
+
+Has a server/admin interface, available at [qp-server](https://github.com/simontabor/qp-server).
 
 ## Install
 
@@ -67,14 +69,18 @@ q.stop(function() {
 // QP
 var qp = new QP({
   cleanShutdown: true, // default: false. set to true to have all workers complete all jobs prior to process exit
-  shutdownCB: function() { process.exit() }, // default: process.exit. set to you own function to handle exits cleanly
+  shutdownCB: function() { process.exit() } // default: process.exit. set to you own function to handle exits cleanly
+});
+
+// any of these options can be specified above as options to new QP. Any options here will override those specified for QP.
+var q = qp.getQueue('test', {
   noInfo: true, // default: false. set to true to disable arbitary job data (id only). reduces redis usage **BETA**
   pubSub: false, // default: true. set to false to disable redis pubsub (used for the server/UI) which will reduce redis load
   noBlock: true, // default: false. set to true to not use blpop on redis (reduces number of connections),
   checkInterval: 20 // default: 200. if noBlock is true, number of ms to wait if no job is returned before checking again
+  unique: true, // default: false. whether or not each job ID should be checked that it's not already in the queue
+  deleteOnFinish: true // default: false. if true, jobs will be removed from redis as soon as they're completed. useful for high throughput queues where historical job records arent needed
 });
-
-var q = qp.getQueue('test');
 
 // processing
 q.process({

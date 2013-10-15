@@ -19,16 +19,6 @@ var Workers = module.exports = function(queue, red) {
 Workers.prototype.process = function(opts, cb) {
   var self = this;
 
-  // allow concurrency not to be set
-  if (typeof opts == 'function' && !cb) {
-    cb = opts;
-    opts = {};
-  }
-
-  if (typeof opts === 'number') {
-    opts = { concurrency: opts };
-  }
-
   this.processed = 0;
   this.processing = 0;
   this.start = Date.now();
@@ -39,16 +29,19 @@ Workers.prototype.process = function(opts, cb) {
   this.rateInterval = opts.rateInterval || 1000;
   this.checkInterval = opts.checkInterval || this.rateInterval / 10;
 
-  setInterval(function() {
-    self.start = Date.now();
-    self.processed = 0;
-  }, this.rateInterval);
-
   for (var i = 0; i < (opts.concurrency || 1); i++) {
     this.spawnWorker(opts, cb);
   }
 
-  self.checkRate(opts, cb);
+  // we actually want to check rates
+  if (this.minRate !== 0 || this.maxRate !== Infinity) {
+    setInterval(function() {
+      self.start = Date.now();
+      self.processed = 0;
+    }, this.rateInterval);
+
+    this.checkRate(opts, cb);
+  }
 
 };
 
@@ -130,7 +123,7 @@ Workers.prototype.spawnWorker = function(opts, cb) {
   debug('spawning worker');
 
   var w;
-  if (this.qp.opts.noBlock) {
+  if (this.queue.getOption('noBlock')) {
     w = new Worker(this, opts, this.redis);
   } else {
     w = new Worker(this, opts);
@@ -141,7 +134,7 @@ Workers.prototype.spawnWorker = function(opts, cb) {
   w.on('job', function(job) {
 
     // option not to fetch info on processing
-    if (self.qp.opts.noInfo) {
+    if (self.queue.getOption('noInfo')) {
       job.state = 'inactive';
       job.setState('active');
       cb(job, job.done.bind(job));

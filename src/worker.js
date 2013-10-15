@@ -42,7 +42,7 @@ Worker.prototype.getNonBlockingJob = function(cb) {
       debug('no job, retry');
       setTimeout(function() {
         self.process();
-      }, self.queue.qp.opts.checkInterval || 200);
+      }, self.queue.getOption('checkInterval'));
       return;
     }
 
@@ -52,7 +52,7 @@ Worker.prototype.getNonBlockingJob = function(cb) {
 };
 
 Worker.prototype.getJob = function(cb) {
-  if (!this.queue.qp.opts.noBlock) {
+  if (!this.queue.getOption('noBlock')) {
     this.getBlockingJob(cb);
   } else {
     this.getNonBlockingJob(cb);

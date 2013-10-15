@@ -6,15 +6,23 @@ var Workers = require('./workers');
 
 var debug = require('debug')('qp:Queue');
 
-var Queue = module.exports = function(name, qp) {
+var Queue = module.exports = function(qp, name) {
   this.name = name;
   this.redis = redis.client();
   this.qp = qp;
   this.workers = [];
+  this.opts = {};
 };
 
-Queue.prototype.create = Queue.prototype.createJob = function(data) {
-  var job = new Job(data, this);
+Queue.prototype.create = Queue.prototype.createJob = function(data, opts) {
+  var job = new Job(this, data, opts);
+  return job;
+};
+
+// helper to set the job id as well as any data
+Queue.prototype.job = function(id, data, opts) {
+  var job = this.create(data, opts);
+  job.id = id;
   return job;
 };
 
@@ -31,6 +39,8 @@ Queue.prototype.multiSave = function(jobs, cb) {
   var r = this.redis.multi();
 
   var batch = new Batch();
+
+  // stop redis storming if uniqueness is enabled or IDs arent set
   batch.concurrency(3);
 
   jobs.forEach(function(job) {
@@ -40,6 +50,9 @@ Queue.prototype.multiSave = function(jobs, cb) {
   });
 
   batch.end(function() {
+    // how is best to handle errors from _save here?
+    // we probably still want to exec the rest otherwise
+    // one bad job stops the entire batch from being saved
     r.exec(cb);
   });
 
@@ -101,6 +114,26 @@ Queue.prototype.numJobs = function(states, cb) {
     cb(null, data);
   });
 
+};
+
+Queue.prototype.getOption = function(key) {
+  var defaults = {
+    noInfo: false,
+    pubSub: true,
+    noBlock: false,
+    checkInterval: 200,
+    unique: false,
+    deleteOnFinish: false
+  };
+
+  // use queue opts first
+  if (this.opts.hasOwnProperty(key)) return this.opts[key];
+
+  // try QP opts
+  if (this.qp.opts.hasOwnProperty(key)) return this.qp.opts[key];
+
+  // return the default (or undefined)
+  return defaults[key];
 };
 
 Queue.prototype.getJobs = function(state, from, to, cb) {
