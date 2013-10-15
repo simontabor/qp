@@ -54,8 +54,6 @@ Job.prototype.save = function(cb) {
 Job.prototype._save = function(r, cb) {
   var self = this;
 
-  r.sadd('qp:job:types', self.queue.name);
-
   debug('saving');
 
 
@@ -291,6 +289,12 @@ Job.prototype._finish = function(r) {
     self._remove(r);
   } else if (self.queue.getOption('unique')) {
     r.srem('qp:' + self.queue.name + ':unique', self.id);
+  }
+
+  // we dont actually have any commands to do
+  if (r.queue.length === 1) {
+    self._emit('done');
+    return;
   }
 
   r.exec(function() {

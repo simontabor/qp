@@ -12,6 +12,9 @@ var Queue = module.exports = function(qp, name) {
   this.qp = qp;
   this.workers = [];
   this.opts = {};
+
+  // add the queue name to the jobtypes set
+  this.redis.sadd('qp:job:types', this.name);
 };
 
 Queue.prototype.create = Queue.prototype.createJob = function(data, opts) {
