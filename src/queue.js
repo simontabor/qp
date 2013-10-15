@@ -123,7 +123,8 @@ Queue.prototype.getOption = function(key) {
     noBlock: false,
     checkInterval: 200,
     unique: false,
-    deleteOnFinish: false
+    deleteOnFinish: false,
+    zsets: true
   };
 
   // use queue opts first

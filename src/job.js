@@ -136,13 +136,15 @@ Job.prototype.setState = function(state, r, cb) {
 
   debug('setting state');
 
-  r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
+  var zsets = this.queue.getOption('zsets');
+
+  if (zsets) r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
 
   this.state = state;
 
   this.set('state', state, r);
 
-  r.zadd('qp:' + this.queue.name + '.' + state, Date.now(), this.id, f);
+  if (zsets) r.zadd('qp:' + this.queue.name + '.' + state, Date.now(), this.id, f);
 
   this._emit('state', state, r);
 
@@ -267,7 +269,8 @@ Job.prototype.remove = function(cb) {
 };
 
 Job.prototype._remove = function(r) {
-  r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
+
+  if (this.queue.getOption('zsets')) r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
   r.del('qp:job:' + this.queue.name + '.' + this.id);
   r.del('qp:job:' + this.queue.name + ':log.' + this.id);
 

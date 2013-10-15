@@ -79,7 +79,8 @@ var q = qp.getQueue('test', {
   noBlock: true, // default: false. set to true to not use blpop on redis (reduces number of connections),
   checkInterval: 20 // default: 200. if noBlock is true, number of ms to wait if no job is returned before checking again
   unique: true, // default: false. whether or not each job ID should be checked that it's not already in the queue
-  deleteOnFinish: true // default: false. if true, jobs will be removed from redis as soon as they're completed. useful for high throughput queues where historical job records arent needed
+  deleteOnFinish: true, // default: false. if true, jobs will be removed from redis as soon as they're completed. useful for high throughput queues where historical job records arent needed
+  zsets: false // default: true. whether or not to maintain zsets of active, completed, failed and active jobs. will reduce redis ops if disabled but will remove numJobs + server functionality. will probably need deleteOnFinish to be true for this not to leave old jobs in redis
 });
 
 // processing
