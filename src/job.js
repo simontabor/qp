@@ -78,16 +78,16 @@ Job.prototype._save = function(r, cb) {
     cb();
   };
 
-  self.getID(function() {
+  self.getID(function(err, id) {
 
     if (self.queue.getOption('unique')) {
       debug('checking uniqueness');
 
-      this.redis.sadd('qp:' + this.queue.name + ':unique', function(err, res) {
+      self.redis.sadd('qp:' + self.queue.name + ':unique', id, function(err, res) {
         // not added
         if (!res) {
           debug('already queued');
-          return cb('already in queue');
+          return cb();
         }
 
         save();
