@@ -84,10 +84,10 @@ Job.prototype._save = function(r, cb) {
       debug('checking uniqueness');
 
       self.redis.sadd('qp:' + self.queue.name + ':unique', id, function(err, res) {
-        // not added
+        // check if added
         if (!res) {
           debug('already queued');
-          return cb();
+          return cb(err, res);
         }
 
         save();
