@@ -54,7 +54,7 @@ Queue.prototype.ttl = function() {
     batch.end(cb);
   };
 
-  redis.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(){
+  self.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(){
     var batch = new Batch();
 
     self.states.forEach(function(state){
