@@ -6,15 +6,126 @@ var Workers = require('./workers');
 
 var debug = require('debug')('qp:Queue');
 
-var Queue = module.exports = function(qp, name) {
+var Queue = module.exports = function(qp, name, opts) {
   this.name = name;
   this.redis = redis.client();
   this.qp = qp;
   this.workers = [];
-  this.opts = {};
+  this.opts = opts;
+  this.states = ['active', 'inactive', 'completed', 'failed'];
 
   // add the queue name to the jobtypes set
   this.redis.sadd('qp:job:types', this.name);
+  this.ttl();
+};
+
+/**
+ * Remove jobs from state queues based on TTL settings
+ */
+Queue.prototype.ttl = function() {
+  var self = this;
+
+  var runFrequency = 1000;
+  clearTimeout(self.ttlTimeout);
+
+  var scheduleNext = function(){
+    self.ttlTimeout = setTimeout(self.ttl.bind(self), runFrequency);
+  };
+
+  var getStateOption = function(state){
+    return self.getOption(state+'TTL');
+  };
+
+  var ttlSet = false;
+  for (var i = 0; i < this.states.length; i++) {
+    var state = this.states[i];
+    ttlSet = (typeof getStateOption(state) == 'number');
+  }
+
+  if (!ttlSet) return scheduleNext();
+
+  var removeJobs = function(jobs, cb){
+    var batch = new Batch();
+
+    jobs.forEach(function(job){
+      batch.push(job.remove.bind(job));
+    });
+
+    batch.end(cb);
+  };
+
+  redis.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(){
+    var batch = new Batch();
+
+    self.states.forEach(function(state){
+      var ttl = getStateOption(state);
+
+      if (typeof ttl != 'number') return;
+
+      batch.push(function(done){
+        self.jobsByState(state, ttl, function(err, jobs){
+          if (err || !jobs) return;
+
+          removeJobs(jobs, done);
+        });
+      });
+    });
+
+    batch.end(scheduleNext);
+  });
+};
+
+/**
+ * Get array of jobs by their state
+ * @param  {string}   state
+ * @param  {integer}   ttl  in ms
+ * @param  {Function} cb
+ */
+Queue.prototype.jobsByState = function(state, ttl, cb) {
+  var self = this;
+
+  if (!ttl) cb = ttl;
+  if (!cb) cb = function(){};
+
+  var key = 'qp:' + self.name + '.' + state;
+  if (ttl) end = +(new Date()) - ttl;
+  else end = -1;
+
+  self.redis.zrangebyscore(key, 0, end, function(err, members){
+    if (err) return cb(err);
+
+    var jobs = [];
+    for (var i = 0; i < members.length; i++) {
+      var job = self.create();
+      job.id = members[i];
+      job.state = state;
+      jobs.push(job);
+    }
+
+    cb(err, jobs);
+  });
+};
+
+/**
+ * Set a lock key
+ * @param {object}   redis   node-redis client
+ * @param {integer}  ttl     Time in seconds for the lock to live
+ * @param {string}   suffix  Add uniqueness to the lock
+ * @param {Function} cb
+ */
+Queue.prototype.setLock = function(redis, ttl, keyPrefix, suffix, cb) {
+  var timestamp = ~~(new Date()/1000);
+  timestamp -= timestamp % ttl;
+  var checksum = require('crypto').createHash('md5').update(suffix + timestamp).digest('hex').substr(0, 10);
+  var key = keyPrefix + 'lock:' + checksum;
+  var m = redis.multi();
+  m.setnx(key, timestamp, function(err, lockSet){
+    if(err) return cb(err);
+
+    return cb(err, +lockSet);
+  });
+  m.expire(key, ttl);
+  m.exec();
 };
 
 Queue.prototype.create = Queue.prototype.createJob = function(data, opts) {
@@ -86,7 +197,7 @@ Queue.prototype.numJobs = function(states, cb) {
 
   if (typeof states === 'function' && !cb) {
     cb = states;
-    states = ['inactive', 'active', 'completed', 'failed', 'queued'];
+    states = self.states.concat('queued');
   }
 
   if (!Array.isArray(states)) states = [states];
@@ -127,7 +238,11 @@ Queue.prototype.getOption = function(key) {
     checkInterval: 200,
     unique: false,
     deleteOnFinish: false,
-    zsets: true
+    zsets: true,
+    inactiveTTL: false,
+    activeTTL: false,
+    completedTTL: false,
+    failedTTL: false
   };
 
   // use queue opts first
