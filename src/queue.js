@@ -19,133 +19,39 @@ var Queue = module.exports = function(qp, name, opts) {
   this.ttl();
 };
 
-/**
- * Remove jobs from state queues based on TTL settings
- */
-Queue.prototype.ttl = function() {
-  var self = this;
 
-  var runFrequency = 1000;
-  clearTimeout(self.ttlTimeout);
-
-  var scheduleNext = function(){
-    self.ttlTimeout = setTimeout(self.ttl.bind(self), runFrequency);
+Queue.prototype.getOption = function(key) {
+  var defaults = {
+    noInfo: false,
+    pubSub: true,
+    noBlock: false,
+    checkInterval: 200,
+    unique: false,
+    deleteOnFinish: false,
+    zsets: true,
+    inactiveTTL: false,
+    activeTTL: false,
+    completedTTL: false,
+    failedTTL: false,
+    ttlRunFrequency: 1000
   };
 
-  var getStateOption = function(state){
-    return self.getOption(state+'TTL');
-  };
+  // use queue opts first
+  if (this.opts.hasOwnProperty(key)) return this.opts[key];
 
-  var ttlSet = false;
-  for (var i = 0; i < this.states.length; i++) {
-    var state = this.states[i];
-    ttlSet = (typeof getStateOption(state) == 'number');
-  }
+  // try QP opts
+  if (this.qp.opts.hasOwnProperty(key)) return this.qp.opts[key];
 
-  if (!ttlSet) return scheduleNext();
-
-  var removeJobs = function(jobs, cb){
-    var batch = new Batch();
-
-    for (var i = 0; i < jobs.length; i++) {
-      var job = jobs[i];
-      batch.push(job.remove.bind(job));
-    }
-
-    batch.end(cb);
-  };
-
-  self.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(err, lockAcquired){
-    if (err){
-      debug('Unable to set ttl check lock');
-      return scheduleNext();
-    }
-
-    if (!lockAcquired) return scheduleNext();
-
-    var batch = new Batch();
-
-    self.states.forEach(function(state){
-      var ttl = getStateOption(state);
-
-      if (typeof ttl != 'number') return;
-
-      batch.push(function(done){
-        self.jobsByState(state, ttl, function(err, jobs){
-          if (err || !jobs) return done();
-
-          var numJobs = jobs.length;
-          if (numJobs) debug('Removing %d jobs in %s state past ttl of %d', numJobs, state, ttl);
-          removeJobs(jobs, done);
-        });
-      });
-    });
-
-    batch.end(function(err){
-      if (err) debug(err);
-
-      scheduleNext();
-    });
-  });
+  // return the default (or undefined)
+  return defaults[key];
 };
 
-/**
- * Get array of jobs by their state
- * @param  {string}   state
- * @param  {integer}   ttl  in ms
- * @param  {Function} cb
- */
-Queue.prototype.jobsByState = function(state, ttl, cb) {
-  var self = this;
-
-  if (!ttl) cb = ttl;
-  if (!cb) cb = function(){};
-
-  var key = 'qp:' + self.name + '.' + state;
-  if (ttl) end = Date.now() - ttl;
-  else end = -1;
-
-  self.redis.zrangebyscore(key, 0, end, function(err, members){
-    if (err) return cb(err);
-
-    var jobs = [];
-    for (var i = 0; i < members.length; i++) {
-      var job = self.create();
-      job.id = members[i];
-      job.state = state;
-      jobs.push(job);
-    }
-
-    cb(err, jobs);
-  });
-};
-
-/**
- * Set a lock key
- * @param {object}   redis   node-redis client
- * @param {integer}  ttl     Time in seconds for the lock to live
- * @param {string}   suffix  Add uniqueness to the lock
- * @param {Function} cb
- */
-Queue.prototype.setLock = function(redis, ttl, keyPrefix, suffix, cb) {
-  var timestamp = ~~(new Date()/1000);
-  timestamp -= timestamp % ttl;
-  var checksum = require('crypto').createHash('md5').update(suffix + timestamp).digest('hex').substr(0, 10);
-  var key = keyPrefix + 'lock:' + checksum;
-  var m = redis.multi();
-  m.setnx(key, timestamp, function(err, lockAcquired){
-    if(err) return cb(err);
-
-    return cb(err, +lockAcquired);
-  });
-  m.expire(key, ttl);
-  m.exec();
-};
 
 Queue.prototype.create = Queue.prototype.createJob = function(data, opts) {
   var job = new Job(this, data, opts);
   return job;
 };
+
 
 // helper to set the job id as well as any data
 Queue.prototype.job = function(id, data, opts) {
@@ -153,6 +59,7 @@ Queue.prototype.job = function(id, data, opts) {
   job.id = id;
   return job;
 };
+
 
 Queue.prototype.multiSave = function(jobs, cb) {
 
@@ -206,11 +113,14 @@ Queue.prototype.process = function(opts, cb) {
 
 };
 
+
 Queue.prototype.numJobs = function(states, cb) {
   var self = this;
 
   if (typeof states === 'function' && !cb) {
     cb = states;
+
+    // default to all states, including the queued list
     states = self.states.concat('queued');
   }
 
@@ -244,61 +154,141 @@ Queue.prototype.numJobs = function(states, cb) {
 
 };
 
-Queue.prototype.getOption = function(key) {
-  var defaults = {
-    noInfo: false,
-    pubSub: true,
-    noBlock: false,
-    checkInterval: 200,
-    unique: false,
-    deleteOnFinish: false,
-    zsets: true,
-    inactiveTTL: false,
-    activeTTL: false,
-    completedTTL: false,
-    failedTTL: false
-  };
-
-  // use queue opts first
-  if (this.opts.hasOwnProperty(key)) return this.opts[key];
-
-  // try QP opts
-  if (this.qp.opts.hasOwnProperty(key)) return this.qp.opts[key];
-
-  // return the default (or undefined)
-  return defaults[key];
-};
 
 Queue.prototype.getJobs = function(state, from, to, cb) {
   var self = this;
 
-  self.redis.zrange('qp:' + this.name + '.' + state, from, to, function(err, jobs) {
+  self.redis.zrange('qp:' + this.name + '.' + state, from, to, function(err, members) {
+    if (err) return cb(err);
 
-    var batch = new Batch();
-    jobs.forEach(function(id) {
+    var jobs = [];
+    for (var i = 0; i < members.length; i++) {
+      var job = self.create();
+      job.id = members[i];
+      job.state = state;
+      jobs.push(job);
+    }
 
-      batch.push(function(done) {
-        var job = self.create();
-        job.id = id;
-        job.getInfo(function() {
-          job.toJSON(true);
-          done(null, job);
-        });
-      });
-
-
-    });
-    batch.end(cb);
+    cb(err, jobs);
   });
 };
 
-Queue.prototype.flush = function(cb) {
-  var r = this.redis.multi();
 
-  debug('flushing');
+// gets jobs by the time they were inserted into that state
+Queue.prototype.getJobsByTime = function(state, from, to, cb) {
+  var self = this;
 
-  r.srem('qp:job:types', this.name);
+  if (typeof to === 'function' && !cb) {
+    // [state, to, cb] argument format
+    cb = to;
+    to = from;
+    from = 0;
+  }
+
+  var key = 'qp:' + self.name + '.' + state;
+
+  self.redis.zrangebyscore(key, from, to, function(err, members){
+    if (err) return cb(err);
+
+    var jobs = [];
+    for (var i = 0; i < members.length; i++) {
+      var job = self.create();
+      job.id = members[i];
+      job.state = state;
+      jobs.push(job);
+    }
+
+    cb(err, jobs);
+  });
 };
+
+
+Queue.prototype.setTTLLock = function(cb) {
+  var self = this;
+
+  var ttl = self.getOption('ttlRunFrequency');
+
+  var timestamp = Date.now();
+
+  // round the timestamp to the last run
+  timestamp -= timestamp % ttl;
+
+  var key = 'qp:' + self.name + ':lock.' + timestamp;
+
+  var m = self.redis.multi();
+  m.setnx(key, timestamp, function(err, lockAcquired){
+    cb(err, +lockAcquired);
+  });
+  m.pexpire(key, ttl);
+  m.exec();
+};
+
+
+
+Queue.prototype.ttl = function() {
+  var self = this;
+
+  clearTimeout(self.ttlTimeout);
+
+  var scheduleNext = function(){
+    self.ttlTimeout = setTimeout(self.ttl.bind(self), self.getOption('ttlRunFrequency'));
+  };
+
+  self.setTTLLock(function(err, lockAcquired){
+    if (err){
+      debug('Unable to set ttl check lock');
+      return scheduleNext();
+    }
+
+    if (!lockAcquired) return scheduleNext();
+
+    var batch = new Batch();
+    batch.concurrency(1);
+
+    self.states.forEach(function(state){
+      var ttl = self.getOption(state+'TTL');
+
+      // not set or invalid
+      if (typeof ttl != 'number') return;
+
+      batch.push(function(done){
+        self.jobsByState(state, 0, Date.now() - ttl, function(err, jobs){
+          if (err || !jobs || !jobs.length) return done();
+
+          debug('Removing %d jobs in %s state past ttl of %d', jobs.length, state, ttl);
+          removeJobs(jobs, done);
+        });
+      });
+    });
+
+    batch.end(function(err){
+      if (err) debug(err);
+
+      scheduleNext();
+    });
+  });
+};
+
+
+Queue.prototype.removeJobs = function(jobs, cb) {
+  var batch = new Batch();
+
+  debug('removing %d jobs', jobs.length);
+
+  for (var i = 0; i < jobs.length; i++) {
+    var job = jobs[i];
+
+    // allow an array of job IDs
+    if (!(job instanceof Job)) {
+      job = self.job(job);
+    }
+
+    batch.push(job.remove.bind(job));
+  }
+
+  batch.end(cb);
+};
+
 
 Queue.prototype.clear = function(type, cb) {
   var self = this;
@@ -309,19 +299,15 @@ Queue.prototype.clear = function(type, cb) {
     cb = type;
     type = 'completed';
   }
+
   if (!type) type = 'completed';
 
   var r = self.redis.multi();
-  self.redis.zrange('qp:' + self.name + '.' + type, 0, -1, function(e, members){
-    for (var i = 0; i < members.length; i++) {
-      var job = self.create();
-      job.id = members[i];
-      job.state = type;
-      job._remove(r);
-    }
-    r.exec(cb);
+  self.redis.zrange('qp:' + self.name + '.' + type, 0, -1, function(err, members) {
+    self.removeJobs(members, cb);
   });
 };
+
 
 Queue.prototype.stop = function(cb) {
   debug('stopping queue');
