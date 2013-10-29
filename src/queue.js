@@ -72,14 +72,19 @@ Queue.prototype.ttl = function() {
 
       batch.push(function(done){
         self.jobsByState(state, ttl, function(err, jobs){
-          if (err || !jobs) return;
+          if (err || !jobs) return done();
 
+          debug('Removing %d jobs past ttl in %s state', jobs.length, state);
           removeJobs(jobs, done);
         });
       });
     });
 
-    batch.end(scheduleNext);
+    batch.end(function(err){
+      if(err) debug(err);
+
+      scheduleNext();
+    });
   });
 };
 
