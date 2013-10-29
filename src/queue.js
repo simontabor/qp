@@ -236,7 +236,7 @@ Queue.prototype.ttl = function() {
 
   self.setTTLLock(function(err, lockAcquired){
     if (err){
-      debug('Unable to set ttl check lock');
+      debug('unable to set ttl check lock');
       return scheduleNext();
     }
 
@@ -252,11 +252,11 @@ Queue.prototype.ttl = function() {
       if (typeof ttl != 'number') return;
 
       batch.push(function(done){
-        self.jobsByState(state, 0, Date.now() - ttl, function(err, jobs){
+        self.getJobsByTime(state, 0, Date.now() - ttl, function(err, jobs){
           if (err || !jobs || !jobs.length) return done();
 
-          debug('Removing %d jobs in %s state past ttl of %d', jobs.length, state, ttl);
-          removeJobs(jobs, done);
+          debug('removing %d jobs in %s state past ttl of %d', jobs.length, state, ttl);
+          self.removeJobs(jobs, done);
         });
       });
     });
@@ -272,8 +272,6 @@ Queue.prototype.ttl = function() {
 
 Queue.prototype.removeJobs = function(jobs, cb) {
   var batch = new Batch();
-
-  debug('removing %d jobs', jobs.length);
 
   for (var i = 0; i < jobs.length; i++) {
     var job = jobs[i];
