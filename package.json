@@ -1,21 +1,26 @@
 {
   "name": "qp",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Queue management, similar to that of kue",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/simontabor/qp.git"
+  },
   "scripts": {
     "test": "make test"
   },
-  "repository": "",
   "keywords": [
     "process",
     "queue",
     "kue",
-    "middleware",
     "redis"
   ],
   "author": "Simon Tabor",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/simontabor/qp/issues"
+  },
   "dependencies": {
     "redis": "~0.8.3",
     "hiredis": "~0.1.15",
