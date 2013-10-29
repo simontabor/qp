@@ -157,7 +157,11 @@ Job.prototype.getInfo = function(cb) {
 
   debug('getting info');
 
-  this.redis.hgetall('qp:job:' + this.queue.name + '.' + this.id, function(e, data) {
+  this.redis.hgetall('qp:job:' + this.queue.name + '.' + this.id, function(err, data) {
+    if (err || !data){
+      return cb(err);
+    }
+
     self._processInfo(data);
     cb();
   });
@@ -165,6 +169,8 @@ Job.prototype.getInfo = function(cb) {
 };
 
 Job.prototype._processInfo = function(info) {
+  if(typeof info != 'object') return false;
+
   try {
     this.data = JSON.parse(info.data || {});
   } catch(e) {

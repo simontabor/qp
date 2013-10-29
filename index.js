@@ -17,7 +17,7 @@ QP.prototype.redisClient = function(func) {
 };
 
 QP.prototype.getQueue = function(name, opts) {
-  var q = this.queues[name] || (this.queues[name] = new Queue(this, name));
+  var q = this.queues[name] || (this.queues[name] = new Queue(this, name, opts || {}));
 
   // this will overwrite the queue's options if it already exists and if new ones are specified
   q.opts = opts || q.opts || {};
