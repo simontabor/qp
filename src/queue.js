@@ -47,9 +47,10 @@ Queue.prototype.ttl = function() {
   var removeJobs = function(jobs, cb){
     var batch = new Batch();
 
-    jobs.forEach(function(job){
+    for (var i = 0; i < jobs.length; i++) {
+      var job = jobs[i];
       batch.push(job.remove.bind(job));
-    });
+    }
 
     batch.end(cb);
   };
