@@ -61,7 +61,7 @@ Queue.prototype.ttl = function() {
       return scheduleNext();
     }
 
-    if(!lockAcquired) return scheduleNext();
+    if (!lockAcquired) return scheduleNext();
 
     var batch = new Batch();
 
@@ -74,14 +74,15 @@ Queue.prototype.ttl = function() {
         self.jobsByState(state, ttl, function(err, jobs){
           if (err || !jobs) return done();
 
-          debug('Removing %d jobs past ttl in %s state', jobs.length, state);
+          var numJobs = jobs.length;
+          if (numJobs) debug('Removing %d jobs in %s state past ttl of %d', numJobs, state, ttl);
           removeJobs(jobs, done);
         });
       });
     });
 
     batch.end(function(err){
-      if(err) debug(err);
+      if (err) debug(err);
 
       scheduleNext();
     });
