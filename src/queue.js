@@ -89,7 +89,7 @@ Queue.prototype.jobsByState = function(state, ttl, cb) {
   if (!cb) cb = function(){};
 
   var key = 'qp:' + self.name + '.' + state;
-  if (ttl) end = +(new Date()) - ttl;
+  if (ttl) end = Date.now() - ttl;
   else end = -1;
 
   self.redis.zrangebyscore(key, 0, end, function(err, members){
