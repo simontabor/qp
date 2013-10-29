@@ -55,7 +55,14 @@ Queue.prototype.ttl = function() {
     batch.end(cb);
   };
 
-  self.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(){
+  self.setLock(self.redis, Math.ceil(runFrequency / 1000), 'qp:' + self.name, 'ttl', function(err, lockAcquired){
+    if (err){
+      debug('Unable to set ttl check lock');
+      return scheduleNext();
+    }
+
+    if(!lockAcquired) return scheduleNext();
+
     var batch = new Batch();
 
     self.states.forEach(function(state){
@@ -120,10 +127,10 @@ Queue.prototype.setLock = function(redis, ttl, keyPrefix, suffix, cb) {
   var checksum = require('crypto').createHash('md5').update(suffix + timestamp).digest('hex').substr(0, 10);
   var key = keyPrefix + 'lock:' + checksum;
   var m = redis.multi();
-  m.setnx(key, timestamp, function(err, lockSet){
+  m.setnx(key, timestamp, function(err, lockAcquired){
     if(err) return cb(err);
 
-    return cb(err, +lockSet);
+    return cb(err, +lockAcquired);
   });
   m.expire(key, ttl);
   m.exec();
