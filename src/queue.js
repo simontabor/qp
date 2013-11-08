@@ -271,6 +271,8 @@ Queue.prototype.ttl = function() {
 
 
 Queue.prototype.removeJobs = function(jobs, cb) {
+  var self = this;
+
   var batch = new Batch();
 
   for (var i = 0; i < jobs.length; i++) {

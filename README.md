@@ -1,5 +1,4 @@
-qp
-==
+# qp
 
 Efficient queue manager/processor in node.js.
 
