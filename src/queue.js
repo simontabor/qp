@@ -16,7 +16,8 @@ var Queue = module.exports = function(qp, name, opts) {
 
   // add the queue name to the jobtypes set
   this.redis.sadd('qp:job:types', this.name);
-  this.ttl();
+
+  if (this.getOption('ttlRunFrequency')) this.ttl();
 };
 
 
@@ -33,7 +34,7 @@ Queue.prototype.getOption = function(key) {
     activeTTL: false,
     completedTTL: false,
     failedTTL: false,
-    ttlRunFrequency: 1000
+    ttlRunFrequency: false
   };
 
   // use queue opts first

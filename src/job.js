@@ -136,10 +136,9 @@ Job.prototype.setState = function(state, r, cb) {
 
   var zsets = this.queue.getOption('zsets');
 
-  if (zsets) r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
+  if (zsets && this.state && this.state !== 'unsaved') r.zrem('qp:' + this.queue.name + '.' + this.state, this.id, f);
 
   this.state = state;
-
   this.set('state', state, r);
 
   if (zsets) r.zadd('qp:' + this.queue.name + '.' + state, Date.now(), this.id, f);
