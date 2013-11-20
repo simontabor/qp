@@ -275,7 +275,7 @@ Job.prototype.remove = function(cb) {
   }else if(r.queue.length > 1){
     var args = r.queue[1];
     var cmd = args.shift();
-    this.redis[cmd].apply(this.redis, args);
+    this.redis[cmd](args, cb);
   }
 };
 
