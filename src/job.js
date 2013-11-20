@@ -276,7 +276,9 @@ Job.prototype.remove = function(cb) {
     // we have a single command in the multi, extract it out
     var args = r.queue[1];
     var cmd = args.shift();
-    this.redis[cmd](args, cb);
+
+    // redis needs a callback here (noop if not set)
+    this.redis[cmd](args, cb || function(){});
   }
 };
 
