@@ -269,14 +269,21 @@ Job.prototype._emit = function(type, msg, r) {
 Job.prototype.remove = function(cb) {
   var r = this.redis.multi();
   this._remove(r);
-  r.exec(cb);
+  
+  if(r.queue.length > 2){
+    r.exec(cb);
+  }else if(r.queue.length > 1){
+    var args = r.queue[1];
+    var cmd = args.shift();
+    this.redis[cmd].apply(this.redis, args);
+  }
 };
 
 Job.prototype._remove = function(r) {
 
   if (this.queue.getOption('zsets')) r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
-  r.del('qp:job:' + this.queue.name + '.' + this.id);
-  r.del('qp:job:' + this.queue.name + ':log.' + this.id);
+  r.del('qp:job:' + this.queue.name + '.' + this.id,
+        'qp:job:' + this.queue.name + ':log.' + this.id);
 
   if (this.queue.getOption('unique')) {
     r.srem('qp:' + this.queue.name + ':unique', this.id);
