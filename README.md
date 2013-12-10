@@ -88,7 +88,8 @@ q.process({
   maxRate: 20, // default: Infinity (no limit). maximum number of jobs to process per `rateInterval`
   minRate: 8, // default: 0 (none). minimum number of jobs to process per `rateInterval`
   rateInterval: 2000, // default: 1000. number of ms to check the rates over
-  checkInterval: 1000 // default: rateInterval / 10. number of ms to wait between checking the processing rate (lower = higher accuracy and less bursting)
+  checkInterval: 1000, // default: rateInterval / 10. number of ms to wait between checking the processing rate (lower = higher accuracy and less bursting)
+  maxSpawn: 1 // default: Infinity. the maximum number of new workers to spawn when we're going too slowly
 }, function(job, done) {
   done();
 });
