@@ -34,7 +34,8 @@ Queue.prototype.getOption = function(key) {
     activeTTL: false,
     completedTTL: false,
     failedTTL: false,
-    ttlRunFrequency: false
+    ttlRunFrequency: false,
+    maxSpawn: Infinity
   };
 
   // use queue opts first

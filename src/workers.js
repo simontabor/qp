@@ -94,7 +94,7 @@ Workers.prototype.checkRate = function(opts, cb) {
     } else if (self.workers.length >= self.maxProcessing) {
       debug('already spawned enough processes');
     } else {
-      var numNew = Math.ceil(behind);
+      var numNew = Math.min(Math.ceil(behind), self.queue.getOption('maxSpawn'));
       if (numNew + self.workers.length > self.maxProcessing) {
         numNew = self.maxProcessing - self.workers.length;
       }
