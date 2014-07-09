@@ -51,10 +51,37 @@ QP.prototype.stop = function(cb) {
 QP.prototype.cleanShutdown = function() {
   var self = this;
 
+  var alreadyAttempted = false;
+  var calledBack = false;
+  var shutdownCB = self.opts.shutdownCB || process.exit;
+
   ['SIGHUP', 'SIGINT', 'SIGTERM'].forEach(function(sig) {
     process.on(sig, function(){
+
+      // we've already received a shutdown command, exit immediately
+      if (alreadyAttempted) {
+        console.log('qp already attempted shutdown, forcing exit');
+        calledBack = true;
+        return shutdownCB();
+      }
+
       console.log('qp caught signal ' + sig);
-      self.stop(self.opts.shutdownCB || process.exit);
+      alreadyAttempted = true;
+
+      var shutdownTimeout;
+
+      var cb = function() {
+        if (calledBack) return;
+        calledBack = true;
+        clearTimeout(shutdownTimeout);
+        shutdownCB();
+      }
+
+      if (self.opts.shutdownTimeout) {
+        shutdownTimeout = setTimeout(cb, self.opts.shutdownTimeout);
+      }
+
+      self.stop(cb);
     });
   });
 };

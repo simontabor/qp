@@ -68,7 +68,8 @@ q.stop(function() {
 // QP
 var qp = new QP({
   cleanShutdown: true, // default: false. set to true to have all workers complete all jobs prior to process exit
-  shutdownCB: function() { process.exit() } // default: process.exit. set to you own function to handle exits cleanly
+  shutdownCB: function() { process.exit() }, // default: process.exit. set to you own function to handle exits cleanly
+  shutdownTimeout: 1000 // default: no timeout. force call of shutdownCB after this number of milliseconds if we haven't cleanly exited already
 });
 
 // any of these options can be specified above as options to new QP. Any options here will override those specified for QP.
