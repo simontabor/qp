@@ -106,7 +106,13 @@ Job.prototype.enqueue = function(r) {
   debug('enqueueing');
 
   if (this._attempts) r.hincrby('qp:job:' + this.queue.name + '.' + this.id, '_attempted', 1);
-  r.rpush('qp:' + this.queue.name +':jobs', this.id);
+
+  var command = 'rpush';
+
+  // allow jobs to be added to the top of the queue
+  // may cause incorrect ordering if zsets are enabled
+  if (this.opts.top) command = 'lpush';
+  r[command]('qp:' + this.queue.name +':jobs', this.id);
 
   this.setState('inactive', r);
 
