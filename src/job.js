@@ -27,10 +27,15 @@ Job.prototype.getID = function(cb) {
   debug('getting id');
 
   // this allows the user to set an ID themselves
-  if (this.id) return cb(null, this.id);
+  if (self.id) {
+    process.nextTick(function() {
+      cb(null, self.id)
+    });
+    return;
+  }
 
   // if no id is set, increment a counter and use that (redis round trip, not recommended)
-  this.redis.incr('qp:' + this.queue.name + '.ids', function(err, id) {
+  self.redis.incr('qp:' + self.queue.name + '.ids', function(err, id) {
     self.id = id;
     cb(err, id);
   });
