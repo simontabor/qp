@@ -28,7 +28,7 @@ Job.prototype.getID = function(cb) {
 
   // this allows the user to set an ID themselves
   if (self.id) {
-    process.nextTick(function() {
+    setImmediate(function() {
       cb(null, self.id)
     });
     return;
