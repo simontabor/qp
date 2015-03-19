@@ -1,6 +1,6 @@
 {
   "name": "qp",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Queue management, similar to that of kue",
   "main": "index.js",
   "repository": {
