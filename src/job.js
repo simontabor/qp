@@ -1,8 +1,6 @@
 var util = require('util');
 var Batch = require('batch');
 var EventEmitter = require('events').EventEmitter;
-
-var redis = require('./redis');
 var debug = require('debug')('qp:Job');
 
 var f = function(e,r){
@@ -13,7 +11,7 @@ var Job = module.exports = function(queue, data, opts) {
   this.data = data;
   this.queue = queue;
   this.state = 'unsaved';
-  this.redis = redis.client();
+  this.redis = queue.redis;
 
   // doesnt currently do anything, the job uses the queue options
   this.opts = opts || {};

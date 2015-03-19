@@ -1,5 +1,5 @@
 var Queue = require('./src/queue');
-var redis = require('./src/redis');
+var redisHandler = require('./src/redisHandler');
 
 var Batch = require('batch');
 
@@ -7,13 +7,15 @@ var QP = module.exports = function(opts) {
   this.queues = {};
   this.opts = opts || {};
 
+  this.redis = redisHandler();
+
   if (this.opts.cleanShutdown) {
     this.cleanShutdown();
   }
 };
 
 QP.prototype.redisClient = function(func) {
-  redis.createClient = func;
+  this.redis.createClient = func;
 };
 
 QP.prototype.getQueue = function(name, opts) {
@@ -35,7 +37,7 @@ QP.prototype.createServer = function(name, port) {
 };
 
 QP.prototype.getQueues = function(cb) {
-  redis.client().smembers('qp:job:types', cb);
+  this.redis.client().smembers('qp:job:types', cb);
 };
 
 QP.prototype.stop = function(cb) {

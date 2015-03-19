@@ -3,18 +3,15 @@ var EventEmitter = require('events').EventEmitter;
 
 var debug = require('debug')('qp:Worker');
 
-var redis = require('./redis');
-
 var Worker = module.exports = function(workers, opts, red) {
   var self = this;
 
   this.opts = opts;
 
-  this.redis = red || redis.createClient();
   this.workers = workers;
   this.queue = workers.queue;
   this.qp = this.queue.qp;
-
+  this.redis = red || this.qp.redis.createClient();
 };
 
 util.inherits(Worker, EventEmitter);

@@ -1,6 +1,5 @@
 var Batch = require('batch');
 
-var redis = require('./redis');
 var Job = require('./job');
 var Workers = require('./workers');
 
@@ -8,7 +7,7 @@ var debug = require('debug')('qp:Queue');
 
 var Queue = module.exports = function(qp, name, opts) {
   this.name = name;
-  this.redis = redis.client();
+  this.redis = qp.redis.client();
   this.qp = qp;
   this.workers = [];
   this.opts = opts;
