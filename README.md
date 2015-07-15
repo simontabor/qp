@@ -1,5 +1,11 @@
 # qp
 
+[![Dependencies](https://david-dm.org/simontabor/qp.svg)](https://david-dm.org/simontabor/qp)
+[![Join the chat at https://gitter.im/simontabor/qp](https://img.shields.io/badge/gitter-join%20chat-blue.svg)](https://gitter.im/simontabor/qp)
+
+[![NPM](https://nodei.co/npm/qp.png?downloads=true&downloadRank=true&stars=true)](https://www.npmjs.com/package/qp)
+
+
 Efficient queue manager/processor in node.js.
 
 Has a server/admin interface, available at [qp-server](https://github.com/simontabor/qp-server).
