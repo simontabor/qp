@@ -11,10 +11,10 @@ var qp = new QP({
 });
 
 var q = qp.getQueue('test', {
-  count: 10,
+  count: 100,
   fastAck: true,
-  ackDelay: 1000,
-  // getTimeout: 0,
+  ackDelay: 0,
+  getTimeout: 50,
   async: true,
   retry: 5,
   nacks: 99
@@ -26,22 +26,14 @@ setInterval(function() {
   job.save(function(err) {
   //   // console.log(err, job);
   });
-}, 1);
+}, 1000);
 
 
 
 
 
-var w = q.rateProcess({
-  jobs: 100,
-  interval: 1000
-}, function(job, done) {
-  // console.log(job.id, job.counters);
+q.process(function(job, done) {
+  console.log(job.id, job.counters);
   // done('err');
   done();
 });
-
-setInterval(function() {
-  // console.log(w.jobsComplete);
-  w.setOpts({ jobs: w.opts.jobs  + 50 });
-}, 1000);

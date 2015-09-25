@@ -17,7 +17,8 @@
     "process",
     "queue",
     "kue",
-    "redis"
+    "redis",
+    "disque"
   ],
   "author": "Simon Tabor",
   "license": "MIT",
@@ -25,11 +26,8 @@
     "url": "https://github.com/simontabor/qp/issues"
   },
   "dependencies": {
-    "batch": "^0.5.2",
     "debug": "^2.1.1",
-    "redis": "^0.12.1"
-  },
-  "optionalDependencies": {
-    "hiredis": "^0.4.0"
+    "disque-client": "^0.1.0",
+    "neo-async": "^1.4.1"
   }
 }

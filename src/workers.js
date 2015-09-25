@@ -1,188 +1,161 @@
+'use strict';
 var debug = require('debug')('qp:Workers');
-
-var Batch = require('batch');
-
+var async = require('neo-async');
 var Worker = require('./worker');
 
-var Workers = module.exports = function(queue, red) {
+var Workers = module.exports = function(queue) {
   var self = this;
 
-  this.redis = red;
+  self.disque = queue.disque;
 
-  this.queue = queue;
-  this.qp = queue.qp;
+  self.queue = queue;
+  self.qp = queue.qp;
 
-  this.workers = [];
-
+  self.workers = [];
+  self.acks = [];
+  self.nacks = [];
 };
 
-Workers.prototype.process = function(opts, cb) {
+Workers.prototype.process = function(num, cb) {
   var self = this;
 
-  this.processed = 0;
-  this.processing = 0;
-  this.start = Date.now();
-
-  this.minRate = opts.minRate || 0;
-  this.maxRate = opts.maxRate || Infinity;
-  this.maxProcessing = opts.maxProcessing || this.maxRate * 2;
-  this.rateInterval = opts.rateInterval || 1000;
-  this.checkInterval = opts.checkInterval || this.rateInterval / 10;
-
-  for (var i = 0; i < (opts.concurrency || 1); i++) {
-    this.spawnWorker(opts, cb);
+  for (var i = 0; i < num; i++) {
+    self.spawnWorker(cb);
   }
-
-  // we actually want to check rates
-  if (this.minRate !== 0 || this.maxRate !== Infinity) {
-    setInterval(function() {
-      self.start = Date.now();
-      self.processed = 0;
-    }, this.rateInterval);
-
-    this.checkRate(opts, cb);
-  }
-
 };
 
-
-Workers.prototype.checkRate = function(opts, cb) {
-  var self = this;
-
-  if (self.stopped) return;
-
-  debug('checking rate');
-
-  var diff = Date.now() - self.start;
-  var minBound = self.minRate * (diff / self.rateInterval);
-  var maxBound = self.maxRate * (diff / self.rateInterval);
-
-  debug(self.workers.length + ' workers');
-
-  if (self.processed > maxBound) {
-    var ahead = self.processed - maxBound;
-    self.pause();
-
-    var timeout = ahead * (self.rateInterval / self.maxRate);
-
-    // sanity for small maxRates
-    if (timeout > self.rateInterval) timeout = self.rateInterval - diff;
-
-    debug('too fast - pausing for ' + timeout + 'ms');
-    debug(self.processed + ' / ' + maxBound + ' done');
-
-    for (var i = 0; i < ahead; i++) {
-      var w = self.workers.pop();
-      if (!w) continue;
-      w.stop();
-    }
-
-    setTimeout(self.checkRate.bind(self, opts, cb), timeout);
-    return;
-  }
-
-  // needs to go faster!
-  if (self.processed < minBound) {
-    var behind = minBound - self.processed;
-
-    debug('too slow, ' + behind +' jobs behind');
-
-    self.paused = false;
-
-    if (self.workers.some(function(w){ return w.waiting; })) {
-      debug('workers waiting, no more');
-    } else if (self.workers.length >= self.maxProcessing) {
-      debug('already spawned enough processes');
-    } else {
-      var numNew = Math.min(Math.ceil(behind), self.queue.getOption('maxSpawn'));
-      if (numNew + self.workers.length > self.maxProcessing) {
-        numNew = self.maxProcessing - self.workers.length;
-      }
-      debug('spawning ' + numNew + ' workers');
-      for (var i = 0; i < numNew; i++) self.spawnWorker(opts, cb);
-    }
-  }
-
-  // we have no workers, start one up
-  if (!self.workers.length) self.spawnWorker(opts, cb);
-
-  // unpause any paused workers
-  for (var i = 0; i < self.workers.length; i++) {
-    if (self.workers[i].paused) {
-      self.workers[i].start();
-    }
-  }
-
-  setTimeout(self.checkRate.bind(self, opts, cb), self.checkInterval);
-
-};
-
-Workers.prototype.spawnWorker = function(opts, cb) {
+Workers.prototype.spawnWorker = function(cb) {
   var self = this;
 
   debug('spawning worker');
 
-  var w;
-  if (this.queue.getOption('noBlock')) {
-    w = new Worker(this, opts, this.redis);
-  } else {
-    w = new Worker(this, opts);
-  }
-
-  this.workers.push(w);
+  var w = new Worker(self);
+  self.workers.push(w);
 
   w.on('job', function(job) {
-
-    // option not to fetch info on processing
-    if (self.queue.getOption('noInfo')) {
-      job.state = 'inactive';
-      job.setState('active');
-      cb(job, job.done.bind(job));
-      return;
-    }
-
-    job.getInfo(function() {
-
-      // if theres a timeout - set it up
-      if (job._timeout) {
-        job.__timeout = setTimeout(function() {
-          job.done('timeout');
-        }, job._timeout);
-      }
-
-      job.setState('active');
-      cb(job, job.done.bind(job));
-    });
-
+    cb(job, job.done.bind(job));
   });
 
+  w.on('jobDone', function(job) {
+    self.ack(job.id);
+  });
+
+  var nacks = self.queue.opts.nacks;
+  if (nacks) {
+    w.on('jobError', function(job) {
+      // already gone through maximum nacks, so give up and ack
+      if (job.counters.nacks >= nacks) {
+        self.ack(job.id);
+        return;
+      }
+      self.nack(job.id);
+    });
+  }
+
   w.start();
+  return w;
+};
+
+Workers.prototype.ack = function(id) {
+  var self = this;
+
+  var ackDelay = self.queue.opts.ackDelay;
+
+  if (!ackDelay) {
+    var cmd = self.queue.opts.fastAck ? 'fastack' : 'ackjob';
+    self.disque[cmd](id);
+    return;
+  }
+
+  self.acks.push(id);
+  if (self._ackDelay) return;
+  self._ackDelay = setTimeout(self.runAcks.bind(self), ackDelay);
+};
+
+Workers.prototype.nack = function(id) {
+  var self = this;
+
+  var ackDelay = self.queue.opts.ackDelay;
+
+  if (!ackDelay) {
+    self.disque.nack(id);
+    return;
+  }
+
+  self.nacks.push(id);
+  if (self._nackDelay) return;
+  self._nackDelay = setTimeout(self.runNacks.bind(self), ackDelay);
+};
+
+Workers.prototype.runAcks = function(cb) {
+  var self = this;
+
+  if (!cb) cb = function() {};
+
+  var acks = self.acks;
+  self.acks = [];
+  clearTimeout(self._ackDelay);
+  self._ackDelay = false;
+
+  var cmd = self.queue.opts.fastAck ? 'fastack' : 'ackjob';
+  self.disque[cmd](acks, cb);
+};
+
+Workers.prototype.runNacks = function(cb) {
+  var self = this;
+
+  if (!cb) cb = function() {};
+
+  var nacks = self.nacks;
+  self.nacks = [];
+  clearTimeout(self._nackDelay);
+  self._nackDelay = false;
+
+  self.disque.nack(nacks, cb);
 };
 
 Workers.prototype.stop = function(cb) {
-  this.stopped = true;
+  var self = this;
 
-  debug('stopping ' + this.workers.length + ' workers');
+  debug('stopping ' + self.workers.length + ' workers');
 
-  var batch = new Batch();
-  for (var i = 0; i < this.workers.length; i++) {
-    var w = this.workers[i];
-    batch.push(w.stop.bind(w));
-  }
-  batch.end(cb);
+  async.each(self.workers, function(w, done) {
+    w.stop(done);
+  }, function(err) {
+    if (err) return cb(err);
 
+    async.parallel([
+      self.runAcks.bind(self),
+      self.runNacks.bind(self)
+    ], cb);
+  });
+};
+
+Workers.prototype.start = function() {
+  var self = this;
+
+  debug('starting ' + self.workers.length + ' workers');
+
+  self.workers.forEach(function(w) {
+    w.start();
+  });
 };
 
 Workers.prototype.pause = function(cb) {
-  this.paused = true;
+  var self = this;
 
-  debug('pausing');
+  debug('pausing ' + self.workers.length + ' workers');
 
-  var batch = new Batch();
-  for (var i = 0; i < this.workers.length; i++) {
-    var w = this.workers[i];
-    batch.push(w.pause.bind(w));
-  }
-  batch.end(cb);
+  async.each(self.workers, function(w, done) {
+    w.pause(done);
+  }, function(err) {
+    if (err) return cb(err);
 
+    async.parallel([
+      self.runAcks.bind(self),
+      self.runNacks.bind(self)
+    ], cb);
+  });
 };
+
+
