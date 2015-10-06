@@ -138,7 +138,7 @@ Job.prototype.set = function(key, val, r, cb){
   return this;
 };
 
-Job.prototype.setState = function(state, r, cb) {
+Job.prototype.setState = function(state, r) {
   if (!r) r = this.redis;
 
   debug('setting state');
@@ -197,7 +197,6 @@ Job.prototype._processInfo = function(info) {
 
   if (info.completed_at) this.completed_at = new Date(+info.completed_at);
   if (info.updated_at) this.updated_at = new Date(+info.updated_at);
-
 };
 
 Job.prototype.toJSON = function(set) {
@@ -278,17 +277,7 @@ Job.prototype.remove = function(cb) {
   var r = this.redis.multi();
   this._remove(r);
 
-  if (r.queue.length > 2) {
-    r.exec(cb);
-  } else if (r.queue.length > 1) {
-
-    // we have a single command in the multi, extract it out
-    var args = r.queue[1];
-    var cmd = args.shift();
-
-    // redis needs a callback here (noop if not set)
-    this.redis[cmd](args, cb || function(){});
-  }
+  self._exec(r, cb);
 };
 
 Job.prototype._remove = function(r) {
@@ -317,13 +306,7 @@ Job.prototype._finish = function(r) {
     r.srem('qp:' + self.queue.name + ':unique', self.id);
   }
 
-  // we dont actually have any commands to do
-  if (r.queue.length === 1) {
-    self._emit('done');
-    return;
-  }
-
-  r.exec(function() {
+  self._exec(r, function() {
     self._emit('done');
   });
 };
@@ -338,7 +321,7 @@ Job.prototype.error = function(err) {
     debug('requeueing');
     self.enqueue(r);
     self.finished = true;
-    r.exec(function() {
+    self._exec(r, function() {
       self._emit('done');
     });
     return;
@@ -360,7 +343,6 @@ Job.prototype.fail = function(err) {
     .set('error_message', err);
 
   this._finish(r);
-
 };
 
 Job.prototype.done = function(err) {
@@ -387,5 +369,21 @@ Job.prototype.done = function(err) {
     .setState('completed', r);
 
   this._finish(r);
+};
+
+// efficiently execute a multi
+// NOTE: this doesn't keep consistent responses, but we don't use them
+Job.prototype._exec = function(r, cb) {
+  if (!cb) cb = function() {};
+
+  if (r.queue.length === 1) return setImmediate(cb);
+
+  if (r.queue.length > 2) return r.exec(cb);
+
+  // we have a single command in the multi, extract it out
+  var args = r.queue[1];
+  var cmd = args.shift();
+
+  this.redis[cmd](args, cb);
 };
 

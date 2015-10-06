@@ -63,8 +63,9 @@ Queue.prototype.job = function(id, data, opts) {
 
 
 Queue.prototype.multiSave = function(jobs, cb) {
-
   var self = this;
+
+  if (!jobs.length) return setImmediate(cb);
 
   for (var i = 0; i < jobs.length; i++) {
     if (!(jobs[i] instanceof Job)) {
@@ -98,7 +99,7 @@ Queue.prototype.multiSave = function(jobs, cb) {
 Queue.prototype.process = function(opts, cb) {
 
   // allow concurrency not to be set
-  if (typeof opts == 'function' && !cb) {
+  if (typeof opts === 'function' && !cb) {
     cb = opts;
     opts = {};
   }
@@ -111,7 +112,6 @@ Queue.prototype.process = function(opts, cb) {
   this.workers.push(workers);
 
   workers.process(opts, cb);
-
 };
 
 
@@ -152,7 +152,6 @@ Queue.prototype.numJobs = function(states, cb) {
   batch.end(function() {
     cb(null, data);
   });
-
 };
 
 
@@ -188,7 +187,7 @@ Queue.prototype.getJobsByTime = function(state, from, to, cb) {
 
   var key = 'qp:' + self.name + '.' + state;
 
-  self.redis.zrangebyscore(key, from, to, function(err, members){
+  self.redis.zrangebyscore(key, from, to, function(err, members) {
     if (err) return cb(err);
 
     var jobs = [];
@@ -216,27 +215,23 @@ Queue.prototype.setTTLLock = function(cb) {
 
   var key = 'qp:' + self.name + ':lock.' + timestamp;
 
-  var m = self.redis.multi();
-  m.setnx(key, timestamp, function(err, lockAcquired){
-    cb(err, +lockAcquired);
+  self.redis.set(key, timestamp, 'NX', 'PX', ttl, function(err, resp) {
+    if (err) return cb(err);
+    cb(err, resp === 'OK');
   });
-  m.pexpire(key, ttl);
-  m.exec();
 };
-
-
 
 Queue.prototype.ttl = function() {
   var self = this;
 
   clearTimeout(self.ttlTimeout);
 
-  var scheduleNext = function(){
+  var scheduleNext = function() {
     self.ttlTimeout = setTimeout(self.ttl.bind(self), self.getOption('ttlRunFrequency'));
   };
 
-  self.setTTLLock(function(err, lockAcquired){
-    if (err){
+  self.setTTLLock(function(err, lockAcquired) {
+    if (err) {
       debug('unable to set ttl check lock');
       return scheduleNext();
     }
@@ -246,14 +241,14 @@ Queue.prototype.ttl = function() {
     var batch = new Batch();
     batch.concurrency(1);
 
-    self.states.forEach(function(state){
-      var ttl = self.getOption(state+'TTL');
+    self.states.forEach(function(state) {
+      var ttl = self.getOption(state + 'TTL');
 
       // not set or invalid
-      if (typeof ttl != 'number') return;
+      if (typeof ttl !== 'number') return;
 
-      batch.push(function(done){
-        self.getJobsByTime(state, 0, Date.now() - ttl, function(err, jobs){
+      batch.push(function(done) {
+        self.getJobsByTime(state, 0, Date.now() - ttl, function(err, jobs) {
           if (err || !jobs || !jobs.length) return done();
 
           debug('removing %d jobs in %s state past ttl of %d', jobs.length, state, ttl);
@@ -262,7 +257,7 @@ Queue.prototype.ttl = function() {
       });
     });
 
-    batch.end(function(err){
+    batch.end(function(err) {
       if (err) debug(err);
 
       scheduleNext();
@@ -303,8 +298,8 @@ Queue.prototype.clear = function(type, cb) {
 
   if (!type) type = 'completed';
 
-  var r = self.redis.multi();
   self.redis.zrange('qp:' + self.name + '.' + type, 0, -1, function(err, members) {
+    if (err) return cb(err);
     self.removeJobs(members, cb);
   });
 };
