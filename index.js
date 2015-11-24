@@ -57,8 +57,8 @@ QP.prototype.cleanShutdown = function() {
   var calledBack = false;
   var shutdownCB = self.opts.shutdownCB || process.exit;
 
-  ['SIGHUP', 'SIGINT', 'SIGTERM'].forEach(function(sig) {
-    process.on(sig, function(){
+  [ 'SIGHUP', 'SIGINT', 'SIGTERM' ].forEach(function(sig) {
+    process.on(sig, function() {
 
       // we've already received a shutdown command, exit immediately
       if (alreadyAttempted) {
@@ -77,7 +77,7 @@ QP.prototype.cleanShutdown = function() {
         calledBack = true;
         clearTimeout(shutdownTimeout);
         shutdownCB();
-      }
+      };
 
       if (self.opts.shutdownTimeout) {
         shutdownTimeout = setTimeout(cb, self.opts.shutdownTimeout);

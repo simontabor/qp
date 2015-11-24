@@ -1,6 +1,6 @@
 {
   "name": "qp",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "Queue management, similar to that of kue",
   "main": "index.js",
   "repository": {
@@ -27,7 +27,7 @@
   "dependencies": {
     "batch": "^0.5.2",
     "debug": "^2.1.1",
-    "redis": "^0.12.1"
+    "redis": "^2.3.1"
   },
   "optionalDependencies": {
     "hiredis": "^0.4.0"

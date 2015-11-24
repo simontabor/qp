@@ -4,7 +4,11 @@ var QP = require('../index');
 
 var qp = new QP({ noInfo: true, cleanShutdown: true, noBlock: true });
 
-var q = qp.getQueue('test');
+var q = qp.getQueue('test', {
+  // zsets: false,
+  // noLogs: true,
+  // deleteOnFinish: true
+});
 
 var rate = 0;
 setInterval(function() {

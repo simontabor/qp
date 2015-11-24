@@ -11,7 +11,7 @@ var Queue = module.exports = function(qp, name, opts) {
   this.qp = qp;
   this.workers = [];
   this.opts = opts;
-  this.states = ['active', 'inactive', 'completed', 'failed'];
+  this.states = [ 'active', 'inactive', 'completed', 'failed' ];
 
   // add the queue name to the jobtypes set
   this.redis.sadd('qp:job:types', this.name);
@@ -29,6 +29,7 @@ Queue.prototype.getOption = function(key) {
     unique: false,
     deleteOnFinish: false,
     zsets: true,
+    noLogs: false,
     inactiveTTL: false,
     activeTTL: false,
     completedTTL: false,
@@ -125,7 +126,7 @@ Queue.prototype.numJobs = function(states, cb) {
     states = self.states.concat('queued');
   }
 
-  if (!Array.isArray(states)) states = [states];
+  if (!Array.isArray(states)) states = [ states ];
 
   var data = {};
 

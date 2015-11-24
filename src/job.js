@@ -1,9 +1,8 @@
 var util = require('util');
-var Batch = require('batch');
 var EventEmitter = require('events').EventEmitter;
 var debug = require('debug')('qp:Job');
 
-var f = function(e,r){
+var f = function(e) {
   if (e) console.log(e);
 };
 
@@ -27,7 +26,7 @@ Job.prototype.getID = function(cb) {
   // this allows the user to set an ID themselves
   if (self.id) {
     setImmediate(function() {
-      cb(null, self.id)
+      cb(null, self.id);
     });
     return;
   }
@@ -47,7 +46,7 @@ Job.prototype.save = function(cb) {
   self._save(r, function(err) {
     if (err) return cb(err);
 
-    r.exec(cb);
+    self._exec(r, cb);
   });
 
   return this;
@@ -65,8 +64,11 @@ Job.prototype._save = function(r, cb) {
 
     self
       .set('type', self.queue.name, r)
-      .set('created_at', Date.now(), r)
-      .set('data', self.data, r);
+      .set('created_at', Date.now(), r);
+
+    if (self.data) {
+      self.set('data', self.data, r);
+    }
 
     if (self._timeout) {
       self.set('_timeout', self._timeout, r);
@@ -115,7 +117,7 @@ Job.prototype.enqueue = function(r) {
   // allow jobs to be added to the top of the queue
   // may cause incorrect ordering if zsets are enabled
   if (this.opts.top) command = 'lpush';
-  r[command]('qp:' + this.queue.name +':jobs', this.id);
+  r[command]('qp:' + this.queue.name + ':jobs', this.id);
 
   this.setState('inactive', r);
 
@@ -123,7 +125,7 @@ Job.prototype.enqueue = function(r) {
 };
 
 
-Job.prototype.set = function(key, val, r, cb){
+Job.prototype.set = function(key, val, r, cb) {
   this[key] = val;
 
   if (!this._saved || this.queue.getOption('noInfo')) {
@@ -166,7 +168,7 @@ Job.prototype.getInfo = function(cb) {
   debug('getting info');
 
   this.redis.hgetall('qp:job:' + this.queue.name + '.' + this.id, function(err, data) {
-    if (err || !data){
+    if (err || !data) {
       return cb(err);
     }
 
@@ -177,15 +179,19 @@ Job.prototype.getInfo = function(cb) {
 };
 
 Job.prototype._processInfo = function(info) {
-  if(typeof info != 'object') return false;
+  if (!info || typeof info !== 'object') return false;
 
-  try {
-    this.data = JSON.parse(info.data || {});
-  } catch(e) {
-    console.log('error parsing json');
-    console.error(e);
-    this.data = {};
+  this.data = {};
+
+  if (info.data) {
+    try {
+      this.data = JSON.parse(info.data);
+    } catch(e) {
+      console.log('QP: error parsing json', info.data);
+      console.error(e);
+    }
   }
+
   this.state = info.state;
   this.type = info.type;
   this.created_at = new Date(+info.created_at);
@@ -246,13 +252,16 @@ Job.prototype.timeout = function(num) {
 };
 
 Job.prototype.log = function(msg) {
-  this.redis.rpush('qp:job:' + this.queue.name + ':log.' + this.id, msg);
+  if (!this.queue.getOption('noLogs')) {
+    this.redis.rpush('qp:job:' + this.queue.name + ':log.' + this.id, msg);
+  }
   this._emit('log', msg);
 
   return this;
 };
 
 Job.prototype.getLog = function(cb) {
+  if (this.queue.getOption('noLogs')) return cb(null, []);
   this.redis.lrange('qp:job:' + this.queue.name + ':log.' + this.id, 0, -1, cb);
 };
 
@@ -269,7 +278,7 @@ Job.prototype._emit = function(type, msg, r) {
 
   this.emit(type, data);
 
-  if (this.queue.getOption('pubSub') !== false) r.publish('qp:events', JSON.stringify(data));
+  if (this.queue.getOption('pubSub')) r.publish('qp:events', JSON.stringify(data));
 };
 
 
@@ -284,10 +293,10 @@ Job.prototype._remove = function(r) {
 
   if (this.queue.getOption('zsets')) r.zrem('qp:' + this.queue.name + '.' + this.state, this.id);
 
-  r.del(
-    'qp:job:' + this.queue.name + '.' + this.id,
-    'qp:job:' + this.queue.name + ':log.' + this.id
-  );
+  var delKeys = [];
+  if (!this.queue.getOption('noInfo')) delKeys.push('qp:job:' + this.queue.name + '.' + this.id);
+  if (!this.queue.getOption('noLogs')) delKeys.push('qp:job:' + this.queue.name + ':log.' + this.id);
+  if (delKeys.length) r.del(delKeys);
 
   if (this.queue.getOption('unique')) r.srem('qp:' + this.queue.name + ':unique', this.id);
 };
@@ -331,8 +340,6 @@ Job.prototype.error = function(err) {
 };
 
 Job.prototype.fail = function(err) {
-  var self = this;
-
   debug('failed job');
 
   var r = this.redis.multi();
@@ -371,19 +378,32 @@ Job.prototype.done = function(err) {
   this._finish(r);
 };
 
-// efficiently execute a multi
-// NOTE: this doesn't keep consistent responses, but we don't use them
+// efficiently execute a multi (works across old and new node_redis versions)
 Job.prototype._exec = function(r, cb) {
   if (!cb) cb = function() {};
 
-  if (r.queue.length === 1) return setImmediate(cb);
+  if (r.exec_atomic) {
+    return r.exec_atomic(cb);
+  }
 
-  if (r.queue.length > 2) return r.exec(cb);
+  var firstMulti = ((r.queue[0] || [])[0] || '').toLowerCase() === 'multi';
+  if (!r.queue.length || (firstMulti && r.queue.length === 1)) {
+    return setImmediate(cb);
+  }
 
-  // we have a single command in the multi, extract it out
+  if (!firstMulti || r.queue.length > 2) {
+    return r.exec(cb);
+  }
+
+
   var args = r.queue[1];
   var cmd = args.shift();
+  var fnCb;
+  if (typeof args[args.length - 1] === 'function') fnCb = args.pop();
 
-  this.redis[cmd](args, cb);
+  this.redis[cmd](args, function(err, resp) {
+    if (fnCb) fnCb(err, resp);
+    cb(err, [ resp ]);
+  });
 };
 
