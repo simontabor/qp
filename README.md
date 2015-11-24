@@ -89,7 +89,8 @@ var q = qp.getQueue('test', {
   deleteOnFinish: true, // default: false. if true, jobs will be removed from redis as soon as they're completed. useful for high throughput queues where historical job records arent needed
   zsets: false, // default: true. whether or not to maintain zsets of active, completed, failed and active jobs. will reduce redis ops if disabled but will remove numJobs + server functionality. will probably need deleteOnFinish to be true for this not to leave old jobs in redis
   noLogs: true, // default: false. disable job logs
-  randomID: true // default: false. use Math.random().toString().slice(2) to generate job IDs, instead of incrementing a redis counter
+  randomID: true, // default: false. use Math.random().toString().slice(2) to generate job IDs, instead of incrementing a redis counter
+  storeTypes: false // default: true. whether to store a list of different queue names under qp:job:types
 });
 
 // processing

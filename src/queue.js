@@ -14,7 +14,7 @@ var Queue = module.exports = function(qp, name, opts) {
   this.states = [ 'active', 'inactive', 'completed', 'failed' ];
 
   // add the queue name to the jobtypes set
-  this.redis.sadd('qp:job:types', this.name);
+  if (this.getOption('storeTypes')) this.redis.sadd('qp:job:types', this.name);
 
   if (this.getOption('ttlRunFrequency')) this.ttl();
 };
@@ -37,7 +37,8 @@ Queue.prototype.getOption = function(key) {
     completedTTL: false,
     failedTTL: false,
     ttlRunFrequency: false,
-    maxSpawn: Infinity
+    maxSpawn: Infinity,
+    storeTypes: true
   };
 
   // use queue opts first
