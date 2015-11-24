@@ -23,6 +23,7 @@ var Queue = module.exports = function(qp, name, opts) {
 Queue.prototype.getOption = function(key) {
   var defaults = {
     noInfo: false,
+    noMeta: false,
     pubSub: true,
     noBlock: false,
     checkInterval: 200,
@@ -30,6 +31,7 @@ Queue.prototype.getOption = function(key) {
     deleteOnFinish: false,
     zsets: true,
     noLogs: false,
+    randomID: false,
     inactiveTTL: false,
     activeTTL: false,
     completedTTL: false,

@@ -80,14 +80,16 @@ var qp = new QP({
 
 // any of these options can be specified above as options to new QP. Any options here will override those specified for QP.
 var q = qp.getQueue('test', {
-  noInfo: true, // default: false. set to true to disable arbitary job data (id only). reduces redis usage **BETA**
+  noInfo: true, // default: false. set to true to disable all job data (id only). reduces redis usage
+  noMeta: true, // default: false. set to true to disable all non-essential job metadata (only job data and attempts information stored). reduces redis usage
   pubSub: false, // default: true. set to false to disable redis pubsub (used for the server/UI) which will reduce redis load
   noBlock: true, // default: false. set to true to not use blpop on redis (reduces number of connections),
   checkInterval: 20 // default: 200. if noBlock is true, number of ms to wait if no job is returned before checking again
   unique: true, // default: false. whether or not each job ID should be checked that it's not already in the queue
   deleteOnFinish: true, // default: false. if true, jobs will be removed from redis as soon as they're completed. useful for high throughput queues where historical job records arent needed
   zsets: false, // default: true. whether or not to maintain zsets of active, completed, failed and active jobs. will reduce redis ops if disabled but will remove numJobs + server functionality. will probably need deleteOnFinish to be true for this not to leave old jobs in redis
-  noLogs: true // default: false. disable job logs
+  noLogs: true, // default: false. disable job logs
+  randomID: true // default: false. use Math.random().toString().slice(2) to generate job IDs, instead of incrementing a redis counter
 });
 
 // processing

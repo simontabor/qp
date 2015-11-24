@@ -31,6 +31,14 @@ Job.prototype.getID = function(cb) {
     return;
   }
 
+  if (self.queue.getOption('randomID')) {
+    self.id = Math.random().toString().slice(2);
+    setImmediate(function() {
+      cb(null, self.id);
+    });
+    return;
+  }
+
   // if no id is set, increment a counter and use that (redis round trip, not recommended)
   self.redis.incr('qp:' + self.queue.name + '.ids', function(err, id) {
     self.id = id;
@@ -62,21 +70,16 @@ Job.prototype._save = function(r, cb) {
   var save = function() {
     self._saved = true;
 
-    self
-      .set('type', self.queue.name, r)
-      .set('created_at', Date.now(), r);
+    var props = {
+      type: self.queue.name,
+      created_at: Date.now()
+    };
 
-    if (self.data) {
-      self.set('data', self.data, r);
-    }
+    if (self.data) props.data = self.data;
+    if (self._timeout) props._timeout = self._timeout;
+    if (self._attempts) props._attempts = self._attempts;
 
-    if (self._timeout) {
-      self.set('_timeout', self._timeout, r);
-    }
-
-    if (self._attempts) {
-      self.set('_attempts', self._attempts, r);
-    }
+    self.multiSet(props, r);
 
     self.enqueue(r);
 
@@ -128,7 +131,7 @@ Job.prototype.enqueue = function(r) {
 Job.prototype.set = function(key, val, r, cb) {
   this[key] = val;
 
-  if (!this._saved || this.queue.getOption('noInfo')) {
+  if (!this._saved || this.queue.getOption('noInfo') || (this.queue.getOption('noMeta') && key !== 'data' && key[0] !== '_')) {
     if (cb) cb();
     return this;
   }
@@ -136,6 +139,39 @@ Job.prototype.set = function(key, val, r, cb) {
   if (typeof val === 'object') val = JSON.stringify(val || {});
 
   (r || this.redis).hset('qp:job:' + this.queue.name + '.' + this.id, key, val, cb || f);
+
+  return this;
+};
+
+Job.prototype.multiSet = function(props, r, cb) {
+  for (var i in props) {
+    this[i] = props[i];
+  }
+
+  if (!this._saved || this.queue.getOption('noInfo')) {
+    if (cb) cb();
+    return this;
+  }
+
+  var noMeta = this.queue.getOption('noMeta');
+  var hasProps = false;
+  var redisProps = {};
+  for (var i in props) {
+    if (noMeta && i !== 'data' && i[0] !== '_') continue;
+    hasProps = true;
+    if (props[i] && typeof props[i] === 'object') {
+      redisProps[i] = JSON.stringify(props[i]);
+    } else {
+      redisProps[i] = props[i];
+    }
+  }
+
+  if (!hasProps) {
+    if (cb) return cb();
+    return this;
+  }
+
+  (r || this.redis).hmset('qp:job:' + this.queue.name + '.' + this.id, redisProps, cb || f);
 
   return this;
 };
@@ -194,7 +230,7 @@ Job.prototype._processInfo = function(info) {
 
   this.state = info.state;
   this.type = info.type;
-  this.created_at = new Date(+info.created_at);
+  if (info.created_at) this.created_at = new Date(+info.created_at);
   this._progress = info._progress;
   this._attempts = info._attempts && !isNaN(+info._attempts) && +info._attempts;
   this._attempted = +(info._attempted || 0);
@@ -344,10 +380,11 @@ Job.prototype.fail = function(err) {
 
   var r = this.redis.multi();
 
-  this
-    .set('failed_at', Date.now(), r)
-    .setState('failed', r)
-    .set('error_message', err);
+  this.setState('failed', r);
+  this.multiSet({
+    failed_at: Date.now(),
+    error_message: err
+  }, r);
 
   this._finish(r);
 };
